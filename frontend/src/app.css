@@ -78,3 +78,7 @@ kbd {
   border: 1px solid var(--line);
   border-radius: 4px;
 }
+.text-button:disabled {
+  color: var(--faint);
+  border-color: var(--line);
+}

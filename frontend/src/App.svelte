@@ -7,6 +7,7 @@
   import { canvasKey, refKey } from './lib/keys'
   import { addPaths } from './lib/photos'
   import { app, say, sizes } from './lib/state.svelte'
+  import { bridge } from './lib/bridge.svelte'
   import { ExportPNG, OpenModel } from '../wailsjs/go/main/App'
   import { OnFileDrop } from '../wailsjs/runtime/runtime'
 
@@ -19,6 +20,7 @@
       const layout = await OpenModel(path)
       if (!layout) return
       app.layout = layout
+      app.blend = null
       say(`${layout.name}: ${layout.uvs.length / 6} faces, ${new Set(layout.islands).size} islands`)
     } catch (err) {
       say(String(err))
@@ -79,6 +81,7 @@
 
   onMount(() => {
     if (!wails) return
+    bridge.start(() => canvas.png())
     OnFileDrop((x, y, paths) => {
       const glb = paths.find((p) => p.toLowerCase().endsWith('.glb'))
       if (glb) return openModel(glb)
@@ -95,6 +98,12 @@
     <span class="title">pasteup</span>
     <span class="model mono">{app.layout?.name ?? 'no model'}</span>
     <button class="text-button" title="Open a GLB (⌘O)" onclick={() => openModel()}>open model</button>
+    {#if app.blend}
+      <span class="blender mono" class:live={bridge.live}>
+        <span class="dot"></span>blender {bridge.live ? 'live' : 'offline'}
+      </span>
+      <button class="text-button" title="Get the objects from Blender again" disabled={!bridge.live} onclick={() => bridge.requestSync()}>sync</button>
+    {/if}
     <div class="spacer"></div>
     <div class="seg">
       {#each sizes as s}
@@ -174,6 +183,25 @@
   .model {
     font: 12px var(--mono);
     color: var(--dim);
+  }
+  .blender {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font: 12px var(--mono);
+    color: var(--dim);
+  }
+  .blender .dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--faint);
+  }
+  .blender.live {
+    color: var(--fg);
+  }
+  .blender.live .dot {
+    background: var(--accent);
   }
   .spacer {
     flex: 1;

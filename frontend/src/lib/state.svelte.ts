@@ -36,6 +36,8 @@ export const sizes = [128, 256, 512, 1024]
 
 export const app = $state({
   layout: null as Layout | null,
+  // The .blend the layout came from over the bridge.
+  blend: null as string | null,
   size: 256,
   photos: [] as Photo[],
   layers: [] as Layer[],

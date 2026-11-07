@@ -5,6 +5,7 @@
   import { Composer, hits, place } from './compose'
   import { edges, eachFace, islandAt } from './uv'
   import { activeLayer, app } from './state.svelte'
+  import { bridge } from './bridge.svelte'
 
   let el: HTMLDivElement
   let view: View
@@ -66,8 +67,10 @@
   // Every layer property the texture depends on.
   $effect(() => {
     if (!ready) return
+    void app.size
     const layers = app.layers.map((l) => ({ ...l }))
     composer.render(layers, app.layout)
+    bridge.changed()
     view.draw()
   })
 

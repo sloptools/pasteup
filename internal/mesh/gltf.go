@@ -19,6 +19,7 @@ type Model struct {
 	Tris []Tri
 	// Parts are node names, indexed by Tri.Part.
 	Parts []string
+	sets  map[string]int
 }
 
 type gltfDoc struct {
@@ -52,16 +53,17 @@ type gltfDoc struct {
 	} `json:"bufferViews"`
 }
 
-// LoadGLB reads the triangles of a binary glTF with embedded buffers.
-func LoadGLB(path string) (*Model, error) {
+// LoadGLB reads the triangles of a binary glTF with embedded buffers. Sets picks
+// the UV set per node name; nodes not listed use the first.
+func LoadGLB(path string, sets map[string]int) (*Model, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
-	return ParseGLB(data)
+	return ParseGLB(data, sets)
 }
 
-func ParseGLB(data []byte) (*Model, error) {
+func ParseGLB(data []byte, sets map[string]int) (*Model, error) {
 	doc, bin, err := parseGLB(data)
 	if err != nil {
 		return nil, err
@@ -76,7 +78,7 @@ func ParseGLB(data []byte) (*Model, error) {
 		}
 	}
 
-	m := &Model{}
+	m := &Model{sets: sets}
 	for _, n := range roots {
 		if err := m.addNode(doc, bin, n); err != nil {
 			return nil, err
@@ -123,7 +125,7 @@ func (m *Model) addNode(doc *gltfDoc, bin []byte, index int) error {
 			if prim.Mode != nil && *prim.Mode != 4 {
 				continue
 			}
-			if err := m.addPrimitive(doc, bin, prim.Attributes, prim.Indices, part); err != nil {
+			if err := m.addPrimitive(doc, bin, prim.Attributes, prim.Indices, part, m.sets[node.Name]); err != nil {
 				return err
 			}
 		}
@@ -137,8 +139,8 @@ func (m *Model) addNode(doc *gltfDoc, bin []byte, index int) error {
 	return nil
 }
 
-func (m *Model) addPrimitive(doc *gltfDoc, bin []byte, attrs map[string]int, indices *int, part int) error {
-	ti, ok := attrs["TEXCOORD_0"]
+func (m *Model) addPrimitive(doc *gltfDoc, bin []byte, attrs map[string]int, indices *int, part, set int) error {
+	ti, ok := attrs[fmt.Sprintf("TEXCOORD_%d", set)]
 	if !ok {
 		return nil
 	}

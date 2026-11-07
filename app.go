@@ -14,7 +14,8 @@ import (
 )
 
 type App struct {
-	ctx context.Context
+	ctx    context.Context
+	bridge *bridge
 }
 
 func NewApp() *App {
@@ -23,6 +24,13 @@ func NewApp() *App {
 
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
+	if err := a.startBridge(); err != nil {
+		runtime.LogError(ctx, "bridge: "+err.Error())
+	}
+}
+
+func (a *App) shutdown(ctx context.Context) {
+	a.stopBridge()
 }
 
 // Layout is a model's UV layout: six coordinates per face, v down as in images.
@@ -46,7 +54,13 @@ func (a *App) OpenModel(path string) (*Layout, error) {
 		}
 	}
 
-	m, err := mesh.LoadGLB(path)
+	return loadLayout(path, path, nil)
+}
+
+// loadLayout reads the UVs of a GLB; path names the layout, which can be the .blend
+// the GLB came from.
+func loadLayout(glb, path string, sets map[string]int) (*Layout, error) {
+	m, err := mesh.LoadGLB(glb, sets)
 	if err != nil {
 		return nil, err
 	}
