@@ -1,0 +1,36 @@
+/* Quiet Pixel UI tokens, dark only. From design/tokens.css. */
+@font-face {
+  font-family: 'IBM Plex Mono';
+  src: url('../assets/fonts/IBMPlexMono-400.woff2') format('woff2');
+  font-weight: 400;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'IBM Plex Mono';
+  src: url('../assets/fonts/IBMPlexMono-500.woff2') format('woff2');
+  font-weight: 500;
+  font-display: swap;
+}
+
+:root {
+  --sans: -apple-system, BlinkMacSystemFont, 'Inter', system-ui, sans-serif;
+  --mono: 'IBM Plex Mono', ui-monospace, monospace;
+
+  --bg: #131312;
+  --panel: #181816;
+  --raised: #1f1f1d;
+  --line: #2a2926;
+  --hover: rgb(235 232 223 / 0.04);
+  --active: rgb(235 232 223 / 0.08);
+  --drop: rgb(127 196 175 / 0.1);
+  --fg: #b9b6ad;
+  --strong: #ebe8df;
+  --dim: #76736b;
+  --faint: #4c4a45;
+  --accent: #7fc4af;
+  /* Marks over photos and textures, which the accent gets lost on. */
+  --mark: #ffb020;
+  --error: #e5826f;
+  color-scheme: dark;
+}

@@ -1,0 +1,13 @@
+.DS_Store
+/bin
+build/bin
+node_modules
+frontend/dist
+frontend/package.json.md5
+__pycache__/
+/pasteup
+test-results/
+playwright-report/
+/PLAN.md
+/CLAUDE.md
+/design
