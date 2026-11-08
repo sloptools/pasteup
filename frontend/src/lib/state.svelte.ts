@@ -88,7 +88,23 @@ export type Tip = (typeof tips)[number]
 
 export const sizes = [128, 256, 512, 1024]
 
+// A texture of the project; the shown one's state is in app, the others keep theirs.
+export type Texture = {
+  id: string
+  name: string
+  // The Blender material it is for, over the bridge.
+  material: string | null
+  // The image files the material uses, by channel; pasteup writes into them.
+  files: Record<string, string>
+}
+
 export const app = $state({
+  textures: [{ id: 'texture', name: 'texture', material: null, files: {} }] as Texture[],
+  texture: 'texture',
+  // Selecting an object in Blender shows its texture.
+  follow: true,
+  // A material picked in Blender that has no texture here yet.
+  unknown: null as { object: string; material: string } | null,
   layout: null as Layout | null,
   // The .blend the layout came from over the bridge.
   blend: null as string | null,

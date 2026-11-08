@@ -188,15 +188,16 @@
     display: flex;
     align-items: center;
     gap: 14px;
-    overflow: hidden;
     white-space: nowrap;
+    /* Too narrow, it scrolls sideways rather than squeezing its controls. */
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .options::-webkit-scrollbar {
+    display: none;
   }
   .options > :global(*) {
     flex-shrink: 0;
-  }
-  .options > :global(.slider) {
-    flex-shrink: 1;
-    min-width: 0;
   }
   .tips {
     position: relative;

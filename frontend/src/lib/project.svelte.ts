@@ -1,28 +1,36 @@
 import { Confirm, OpenDialog, ProjectManifest, SaveDialog, SaveProject } from '../../wailsjs/go/main/App'
 import { layersKey, resetHistory } from './history.svelte'
-import { layersOf, present } from './channels'
-import { app, newId, say, type Channel, type Layer, type Layout, type Photo, type Tile } from './state.svelte'
+import { channels, app, newId, say, type Channel, type Layer, type Layout, type Photo, type Texture, type Tile } from './state.svelte'
+import { blank, setTextures, stateOf, type TextureState } from './textures.svelte'
 
 // A .pasteup file: project.json, pieces/ (layer pixels and painted masks), refs/
-// (photo copies). Layers sit under their channels.
+// (photo copies). Each texture's layers sit under their channels.
 type LayerJson = Omit<Layer, 'canvas' | 'mask'> & { canvas: string | null; mask: string | null }
-type Manifest = {
-  version: 1
+type TextureJson = Texture & {
   size: number
   tile: Tile
-  colors: [string, string]
-  swatches: string[]
   layout: Layout | null
   blend: string | null
   active: string | null
   channels: Partial<Record<Channel, { layers: LayerJson[] }>>
   bakeAO?: boolean
   emissionStrength?: number
+}
+type Shared = {
+  colors: [string, string]
+  swatches: string[]
   finish?: typeof app.finish
   palettes?: typeof app.palettes
   autoPalette?: string[]
   photos: { id: string; name: string; entry: string; x: number; y: number }[]
 }
+type Manifest = Shared & { version: 2; textures: TextureJson[]; texture: string }
+// Before textures: one, its fields at the top.
+type ManifestV1 = Shared & Omit<TextureJson, keyof Texture> & { version: 1 }
+
+// A texture state's channels that have a stack, color always.
+const stacksOf = (s: TextureState) => channels.filter((ch) => ch === 'color' || ch === s.channel || s.stacks[ch])
+const layersIn = (s: TextureState, ch: Channel) => (ch === s.channel ? s.layers : (s.stacks[ch]?.layers ?? []))
 
 export const project = $state({ path: null as string | null, saved: '' })
 
@@ -33,7 +41,12 @@ const photoEntries = new Map<string, string>()
 // The file the entries are in.
 let entriesIn: { path: string; names: Set<string> } | null = null
 
-const changes = () => app.size + present().map((ch) => ch + layersKey(layersOf(ch))).join() + app.bakeAO + app.emissionStrength + JSON.stringify([app.finish, app.palettes]) + JSON.stringify(app.photos.map((p) => [p.id, p.x, p.y])) + app.tile + app.swatches.join() + (app.layout?.path ?? '') + (app.layout?.uvs.length ?? 0)
+function textureKey(t: Texture) {
+  const s = stateOf(t)
+  return (t.material ?? '') + s.size + stacksOf(s).map((ch) => ch + layersKey(layersIn(s, ch))).join() + s.bakeAO + s.emissionStrength + s.tile + (s.layout?.path ?? '') + (s.layout?.uvs.length ?? 0)
+}
+
+const changes = () => app.textures.map(textureKey).join('|') + JSON.stringify([app.finish, app.palettes]) + JSON.stringify(app.photos.map((p) => [p.id, p.x, p.y])) + app.swatches.join()
 
 export const dirty = () => changes() !== project.saved
 
@@ -73,8 +86,22 @@ async function write(path: string) {
     return name
   }
 
-  const stacks: Manifest['channels'] = {}
-  for (const ch of present()) stacks[ch] = { layers: layersOf(ch).map((l): LayerJson => ({ ...$state.snapshot(l), canvas: piece(l.canvas), mask: piece(l.mask) }) as LayerJson) }
+  const textures = app.textures.map((t): TextureJson => {
+    const s = stateOf(t)
+    const stacks: TextureJson['channels'] = {}
+    for (const ch of stacksOf(s)) stacks[ch] = { layers: layersIn(s, ch).map((l): LayerJson => ({ ...$state.snapshot(l), canvas: piece(l.canvas), mask: piece(l.mask) }) as LayerJson) }
+    return {
+      ...$state.snapshot(t),
+      size: s.size,
+      tile: s.tile,
+      layout: $state.snapshot(s.layout) as Layout | null,
+      blend: s.blend,
+      active: s.channel === 'color' ? s.active : (s.stacks.color?.active ?? null),
+      channels: stacks,
+      bakeAO: s.bakeAO,
+      emissionStrength: s.emissionStrength,
+    }
+  })
 
   const photos = app.photos.map((p) => {
     let entry = photoEntries.get(p.id)
@@ -87,17 +114,11 @@ async function write(path: string) {
   })
 
   const manifest: Manifest = {
-    version: 1,
-    size: app.size,
-    tile: app.tile,
+    version: 2,
+    textures,
+    texture: app.texture,
     colors: [...app.colors],
     swatches: [...app.swatches],
-    layout: $state.snapshot(app.layout) as Layout | null,
-    blend: app.blend,
-    active: app.channel === 'color' ? app.active : (app.stacks.color?.active ?? null),
-    channels: stacks,
-    bakeAO: app.bakeAO,
-    emissionStrength: app.emissionStrength,
     finish: $state.snapshot(app.finish),
     palettes: $state.snapshot(app.palettes),
     autoPalette: [...app.autoPalette],
@@ -136,7 +157,7 @@ function load(url: string): Promise<HTMLImageElement> {
 export async function open(path: string) {
   if (dirty() && !(await Confirm('Unsaved changes', `Open ${path.replace(/^.*\//, '')} and drop the changes?`, 'Open'))) return
   try {
-    const m = JSON.parse(await ProjectManifest(path)) as Manifest
+    const m = upgrade(JSON.parse(await ProjectManifest(path)))
     const url = (entry: string) => `/project?path=${encodeURIComponent(path)}&entry=${encodeURIComponent(entry)}`
     const names = new Set<string>()
     const canvases = new Map<string, HTMLCanvasElement>()
@@ -151,14 +172,21 @@ export async function open(path: string) {
       return canvases.get(entry)!
     }
 
-    const stacks: Partial<Record<Channel, { layers: Layer[]; active: string | null }>> = {}
-    for (const [ch, c] of Object.entries(m.channels) as [Channel, { layers: LayerJson[] }][]) {
-      const layers: Layer[] = []
-      for (const l of c.layers) layers.push({ ...l, canvas: await piece(l.canvas), mask: await piece(l.mask) })
-      stacks[ch] = { layers, active: layers.at(-1)?.id ?? null }
+    const textures: { texture: Texture; state: TextureState }[] = []
+    for (const t of m.textures) {
+      const stacks: TextureState['stacks'] = {}
+      for (const [ch, c] of Object.entries(t.channels) as [Channel, { layers: LayerJson[] }][]) {
+        const layers: Layer[] = []
+        for (const l of c.layers) layers.push({ ...l, canvas: await piece(l.canvas), mask: await piece(l.mask) })
+        stacks[ch] = { layers, active: layers.at(-1)?.id ?? null }
+      }
+      const color = stacks.color ?? { layers: [], active: null }
+      delete stacks.color
+      textures.push({
+        texture: { id: t.id, name: t.name, material: t.material, files: t.files ?? {} },
+        state: { ...blank(t.size), tile: t.tile, layout: t.layout, blend: t.blend, layers: color.layers, active: t.active, stacks, bakeAO: t.bakeAO ?? true, emissionStrength: t.emissionStrength ?? 1 },
+      })
     }
-    const color = stacks.color ?? { layers: [], active: null }
-    delete stacks.color
     const photos: Photo[] = []
     for (const p of m.photos) {
       photos.push({ id: p.id, name: p.name, dir: '', img: await load(url(p.entry)), x: p.x, y: p.y })
@@ -166,28 +194,15 @@ export async function open(path: string) {
       names.add(p.entry)
     }
 
+    setTextures(textures, textures.some((t) => t.texture.id === m.texture) ? m.texture : textures[0].texture.id)
     Object.assign(app, {
-      size: m.size,
-      tile: m.tile,
       colors: m.colors,
       swatches: m.swatches,
-      layout: m.layout,
-      blend: m.blend,
-      layers: color.layers,
-      channel: 'color',
-      stacks,
-      onion: { channel: null, opacity: 0.3 },
-      bakeAO: m.bakeAO ?? true,
-      emissionStrength: m.emissionStrength ?? 1,
+      unknown: null,
       finish: { mode: 'off', colors: 64, palette: null, dither: 0, sharpen: 0, psx: false, ...m.finish },
       palettes: m.palettes ?? [],
       autoPalette: m.autoPalette ?? [],
       photos,
-      active: m.active,
-      selection: null,
-      floating: null,
-      maskOf: null,
-      gradientAim: null,
     })
     entriesIn = { path, names }
     project.path = path
@@ -197,6 +212,29 @@ export async function open(path: string) {
   } catch (e) {
     say(`could not open: ${e}`)
   }
+}
+
+// A project from before textures: one texture, for the material the old add-on
+// made, writing where it wrote.
+function upgrade(m: Manifest | ManifestV1): Manifest {
+  if (m.version === 2) return m
+  const { version, size, tile, layout, blend, active, channels, bakeAO, emissionStrength, ...shared } = m
+  const name = blend?.replace(/^.*\//, '').replace(/\.blend$/, '')
+  const texture: TextureJson = {
+    id: 'texture',
+    name: name ?? layout?.name ?? 'texture',
+    material: name ? `pasteup ${name}` : null,
+    files: blend ? { color: blend.replace(/\.blend$/, '.png') } : {},
+    size,
+    tile,
+    layout,
+    blend,
+    active,
+    channels,
+    bakeAO,
+    emissionStrength,
+  }
+  return { ...shared, version: 2, textures: [texture], texture: texture.id }
 }
 
 // ⌘O: a project, or a model to lay the texture onto.

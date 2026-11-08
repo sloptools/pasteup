@@ -2,14 +2,20 @@
 
 Install `tools/blender/pasteup_bridge.py`: Preferences › Add-ons › Install from Disk. The panel sits in the 3D view sidebar, tab **pasteup**. The `.blend` must be saved.
 
+One texture per material. A project holds several; the list in the header switches between them.
+
 | Control | Effect |
 |---|---|
-| sync | sends the objects with the UV map Blender renders with; pasteup shows their layout |
-| use selection | the selected objects share the texture; without it, the first sync takes the selection |
-| show texture | the objects show the material `pasteup <name>`; off brings their own back |
-| sync (pasteup header) | asks Blender to sync again |
+| sync | sends the objects with the active object's material, only their faces with that material, in the UV map Blender renders with; an object without a material gets one named after it |
+| select an object | pasteup shows its material's texture (with **follow** on in the header) |
+| add (pasteup header) | a selected object whose material has no texture yet: sync it |
+| sync (pasteup header) | asks Blender to sync the shown texture's material again |
 
-pasteup writes the texture as `<name>.png` beside the `.blend`, about 0.3 s after each change, and the other channels as `<name>_emission.png`, `<name>_roughness.png`. The material samples them with Closest, metallic 0, no specular: emission into the emission color at the glow strength, roughness (non-color) into roughness, roughness 1 without one. AO is multiplied into the color unless kept apart (see channels).
+On the first sync, the images the material already uses (base color, emission, roughness) become the first layer of their channel. pasteup then writes into those same files, about 0.3 s after each change, as PNG. Where the material has none, it writes `<material>.png` beside the `.blend`, and `<…>_emission.png`, `<…>_roughness.png`, and wires them in with Closest. Emission takes the glow strength. AO is multiplied into the color unless kept apart (see channels).
+
+A file pasteup didn't write itself is first copied into `.pasteup-backup/` beside it, so nothing painted elsewhere gets lost.
+
+Projects from before textures open as one texture for the material `pasteup <name>` the old add-on made, writing to `<name>.png`.
 
 ## Painting in Blender
 

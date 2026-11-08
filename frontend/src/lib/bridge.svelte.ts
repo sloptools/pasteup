@@ -1,7 +1,8 @@
 import { BridgeConnected, BridgeRequestSync, BridgeTexture } from '../../wailsjs/go/main/App'
 import { EventsOn } from '../../wailsjs/runtime/runtime'
-import { app, say, type Layout } from './state.svelte'
+import { addLayer, app, say, sizes, type Channel, type Layout } from './state.svelte'
 import { readBack } from './readback'
+import { addTexture, blank, current, empty, stateOf, switchTo, textureFor } from './textures.svelte'
 
 function hash(s: string): string {
   let h = 2166136261
@@ -9,16 +10,57 @@ function hash(s: string): string {
   return (h >>> 0).toString(16)
 }
 
-// Blender sends a .blend's objects with their UVs; pasteup sends the channels back
-// as PNGs beside the .blend, once they rest.
+type Sync = { blend: string; material: string; layout: Layout; images: Record<string, string> | null }
+
+function image(path: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const img = new Image()
+    img.onload = () => resolve(img)
+    img.onerror = () => reject(new Error(`could not read ${path}`))
+    img.src = `/photo?path=${encodeURIComponent(path)}`
+  })
+}
+
+// The images a material already has become the first layer of their channels,
+// the texture taking the color image's size.
+async function importImages(images: Record<string, string>) {
+  for (const ch of ['color', 'emission', 'roughness'] as Channel[]) {
+    if (!images[ch]) continue
+    let img: HTMLImageElement
+    try {
+      img = await image(images[ch])
+    } catch (err) {
+      say(String(err))
+      continue
+    }
+    if (ch === 'color') app.size = sizes.find((s) => s >= img.naturalWidth) ?? sizes[sizes.length - 1]
+    const canvas = document.createElement('canvas')
+    canvas.width = img.naturalWidth
+    canvas.height = img.naturalHeight
+    canvas.getContext('2d')!.drawImage(img, 0, 0)
+    const layer = { name: images[ch].replace(/^.*\//, ''), canvas, x: app.size / 2, y: app.size / 2, scaleX: app.size / canvas.width, scaleY: app.size / canvas.height, turns: 0, flipX: false, flipY: false, island: null }
+    if (ch === app.channel) addLayer(layer)
+    else {
+      const shown = { layers: app.layers, active: app.active }
+      app.layers = []
+      addLayer(layer)
+      app.stacks[ch] = { layers: app.layers, active: app.active }
+      app.layers = shown.layers
+      app.active = shown.active
+    }
+  }
+}
+
+// Blender sends the objects of a material with their UVs; pasteup sends that
+// texture's channels back as PNGs, into the material's images, once they rest.
 class Bridge {
   // The .blend files whose add-on is listening.
   connected = $state<string[]>([])
   private snapshot: () => Record<string, string> = () => ({})
   private timer = 0
   private sent = ''
-  // The color of the last few versions sent, to read Blender's paint against.
-  private versions = new Map<number, string>()
+  // The color of the last versions sent, by material and version, to read Blender's paint against.
+  private versions = new Map<string, string>()
 
   get live() {
     return !!app.blend && this.connected.includes(app.blend)
@@ -26,20 +68,43 @@ class Bridge {
 
   start(snapshot: () => Record<string, string>) {
     this.snapshot = snapshot
-    EventsOn('bridge:paint', (p: { blend: string; png: string; texture: number }) => {
-      const base = this.versions.get(p.texture)
-      if (p.blend !== app.blend) return
+    EventsOn('bridge:sync', (s: Sync) => this.synced(s))
+    EventsOn('bridge:select', (s: { blend: string; material: string; object: string }) => this.selected(s))
+    EventsOn('bridge:paint', (p: { blend: string; material: string; png: string; texture: number }) => {
+      const t = textureFor(p.blend, p.material)
+      if (!t) return
+      const base = this.versions.get(`${p.material}:${p.texture}`)
       if (!base) return say('blender painted on a texture pasteup no longer has')
+      switchTo(t.id)
       readBack(p.png, base)
     })
-    EventsOn('bridge:sync', (s: { blend: string; layout: Layout }) => {
-      app.layout = s.layout
-      app.blend = s.blend
-      this.sent = ''
-      say(`synced ${s.layout.name} from blender: ${s.layout.uvs.length / 6} faces`)
-      this.changed(true)
-    })
     setInterval(() => this.poll(), 1500)
+  }
+
+  // A material's texture: the one there is, an untouched one, or a new one.
+  private async synced(s: Sync) {
+    let t = textureFor(s.blend, s.material)
+    const fresh = !t || empty(t)
+    if (t) switchTo(t.id)
+    else if (!current().material && empty(current())) Object.assign(current(), { name: s.material, material: s.material })
+    else addTexture({ name: s.material, material: s.material, files: {} }, blank())
+    t = current()
+    t.files = s.images ?? {}
+    app.layout = s.layout
+    app.blend = s.blend
+    if (app.unknown?.material === s.material || app.unknown?.object === s.material) app.unknown = null
+    if (fresh) await importImages(t.files)
+    this.sent = ''
+    say(`synced ${s.material} from blender: ${s.layout.uvs.length / 6} faces`)
+    this.changed(true)
+  }
+
+  // An object made active in Blender: its texture shows, or pasteup offers to sync it.
+  private selected(s: { blend: string; material: string; object: string }) {
+    if (!app.textures.some((t) => stateOf(t).blend === s.blend)) return
+    const t = s.material ? textureFor(s.blend, s.material) : undefined
+    app.unknown = t || !s.object ? null : { object: s.object, material: s.material }
+    if (t && app.follow) switchTo(t.id)
   }
 
   private async poll() {
@@ -59,24 +124,26 @@ class Bridge {
   }
 
   private async send() {
-    const blend = app.blend
-    if (!blend) return
+    const { blend } = app
+    const { material, files } = current()
+    if (!blend || !material) return
     const pngs = this.snapshot()
     const strength = app.emissionStrength
-    const sig = hash(Object.entries(pngs).flat().join() + strength)
+    const sig = hash(material + Object.entries(pngs).flat().join() + strength)
     if (sig === this.sent) return
     this.sent = sig
     try {
-      const version = await BridgeTexture(blend, pngs, strength)
-      if (pngs.color) this.versions.set(version, pngs.color)
-      for (const v of this.versions.keys()) if (v < version - 8) this.versions.delete(v)
+      const version = await BridgeTexture(blend, material, $state.snapshot(files), pngs, strength)
+      if (pngs.color) this.versions.set(`${material}:${version}`, pngs.color)
+      while (this.versions.size > 16) this.versions.delete(this.versions.keys().next().value!)
     } catch (err) {
       say(String(err))
     }
   }
 
-  requestSync() {
-    if (app.blend) BridgeRequestSync(app.blend)
+  // Gets a material's objects again; with a name Blender has no material of, the object's.
+  requestSync(name = current().material ?? '') {
+    if (app.blend) BridgeRequestSync(app.blend, name)
   }
 }
 

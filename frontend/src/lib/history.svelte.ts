@@ -114,6 +114,22 @@ export function redo() {
   return true
 }
 
+export type History = { past: Snap[]; future: Snap[] }
+
+// The steps of the texture going away, kept while another one shows.
+export function takeHistory(): History {
+  if (timer) commit()
+  return { past, future }
+}
+
+export function giveHistory(h: History | null) {
+  resetHistory()
+  if (h) {
+    past = h.past
+    future = h.future
+  }
+}
+
 // Starts undo over from what is there now, after opening a project.
 export function resetHistory() {
   clearTimeout(timer)

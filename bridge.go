@@ -35,49 +35,69 @@ type bridge struct {
 	written map[string][32]byte
 }
 
-// blendState is what pasteup has for one .blend: its texture files with a count
-// that goes up with each new set, and a count of syncs pasteup asked for. A
-// channel the project doesn't have is empty.
+// blendState is what pasteup has for one .blend: the textures by material, and
+// a count of syncs pasteup asked for, with the material to sync.
 type blendState struct {
-	Texture  int    `json:"texture"`
+	Textures map[string]*textureState `json:"textures"`
+	Sync     int                      `json:"sync"`
+	SyncOf   string                   `json:"syncOf"`
+	seen     time.Time
+}
+
+// textureState is one material's texture files, with a count that goes up with
+// each new set. A channel the texture doesn't have is empty.
+type textureState struct {
+	Version  int    `json:"version"`
 	Color    string `json:"color"`
 	Emission string `json:"emission"`
 	// How strongly the emission glows in the material.
 	Strength  float64 `json:"strength"`
 	Roughness string  `json:"roughness"`
-	Sync      int     `json:"sync"`
-	seen      time.Time
 }
 
-// BridgeSync is what the add-on sends after writing a .blend's objects into a GLB,
-// with the UV set per object that Blender renders with.
+// BridgeSync is what the add-on sends after writing the objects with a material
+// into a GLB: the UV set per object that Blender renders with, and the image
+// files the material already uses, by channel.
 type BridgeSync struct {
-	Blend   string         `json:"blend"`
-	Written string         `json:"written"`
-	UVSets  map[string]int `json:"uvSets"`
+	Blend    string            `json:"blend"`
+	Written  string            `json:"written"`
+	UVSets   map[string]int    `json:"uvSets"`
+	Material string            `json:"material"`
+	Images   map[string]string `json:"images"`
+}
+
+// BridgeSelect is the material of the object just made active in Blender.
+type BridgeSelect struct {
+	Blend    string `json:"blend"`
+	Material string `json:"material"`
+	Object   string `json:"object"`
 }
 
 // BridgePaint is what the add-on sends when the texture was painted on in Blender:
 // its pixels as raw RGBA bytes, rows bottom up as Blender keeps them, and the
 // texture version they were painted on.
 type BridgePaint struct {
-	Blend   string `json:"blend"`
-	Written string `json:"written"`
-	Width   int    `json:"width"`
-	Height  int    `json:"height"`
-	Texture int    `json:"texture"`
+	Blend    string `json:"blend"`
+	Material string `json:"material"`
+	Written  string `json:"written"`
+	Width    int    `json:"width"`
+	Height   int    `json:"height"`
+	Texture  int    `json:"texture"`
 }
 
 // BridgePainted goes to the frontend: the painted texture as a PNG and its base version.
 type BridgePainted struct {
-	Blend   string `json:"blend"`
-	PNG     string `json:"png"`
-	Texture int    `json:"texture"`
+	Blend    string `json:"blend"`
+	Material string `json:"material"`
+	PNG      string `json:"png"`
+	Texture  int    `json:"texture"`
 }
 
 type BridgeLayout struct {
-	Blend  string  `json:"blend"`
-	Layout *Layout `json:"layout"`
+	Blend    string            `json:"blend"`
+	Material string            `json:"material"`
+	Layout   *Layout           `json:"layout"`
+	Images   map[string]string `json:"images"`
 }
 
 func bridgeFile() (string, error) {
@@ -124,7 +144,7 @@ func (a *App) stopBridge() {
 func (b *bridge) state(blend string) *blendState {
 	s, ok := b.blends[blend]
 	if !ok {
-		s = &blendState{}
+		s = &blendState{Textures: map[string]*textureState{}}
 		b.blends[blend] = s
 	}
 	return s
@@ -158,14 +178,22 @@ func (a *App) bridgeHandler() http.Handler {
 				http.Error(w, "bad sync", http.StatusBadRequest)
 				return
 			}
-			layout, err := loadLayout(s.Written, s.Blend, s.UVSets)
+			layout, err := loadLayout(s.Written, s.Blend, s.UVSets, s.Material)
 			os.Remove(s.Written)
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
-			runtime.EventsEmit(a.ctx, "bridge:sync", BridgeLayout{Blend: s.Blend, Layout: layout})
+			runtime.EventsEmit(a.ctx, "bridge:sync", BridgeLayout{Blend: s.Blend, Material: s.Material, Layout: layout, Images: s.Images})
 			runtime.WindowShow(a.ctx)
+
+		case "/select":
+			var s BridgeSelect
+			if err := json.NewDecoder(r.Body).Decode(&s); err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+			runtime.EventsEmit(a.ctx, "bridge:select", s)
 
 		case "/paint":
 			var p BridgePaint
@@ -179,7 +207,7 @@ func (a *App) bridgeHandler() http.Handler {
 				http.Error(w, err.Error(), http.StatusBadRequest)
 				return
 			}
-			runtime.EventsEmit(a.ctx, "bridge:paint", BridgePainted{Blend: p.Blend, PNG: png, Texture: p.Texture})
+			runtime.EventsEmit(a.ctx, "bridge:paint", BridgePainted{Blend: p.Blend, Material: p.Material, PNG: png, Texture: p.Texture})
 
 		default:
 			http.NotFound(w, r)
@@ -228,19 +256,19 @@ func (a *App) BridgeConnected() []string {
 	return out
 }
 
-// BridgeTexture writes the live channels beside the .blend, color as <name>.png,
-// the others as <name>_<channel>.png, and tells the add-on. It returns the
-// version, which comes back with paint from Blender.
-func (a *App) BridgeTexture(blend string, pngs map[string]string, strength float64) (int, error) {
+// BridgeTexture writes a material's channels into the image files it uses, or
+// beside the .blend as <material>.png and <material>_<channel>.png, and tells the
+// add-on. It returns the version, which comes back with paint from Blender.
+func (a *App) BridgeTexture(blend, material string, files, pngs map[string]string, strength float64) (int, error) {
 	if a.bridge == nil {
 		return 0, errors.New("no bridge")
 	}
-	if !filepath.IsAbs(blend) {
+	if !filepath.IsAbs(blend) || material == "" {
 		return 0, errors.New("bad blend")
 	}
 	paths := map[string]string{}
 	for channel, b64 := range pngs {
-		path, err := channelPath(strings.TrimSuffix(blend, filepath.Ext(blend))+".png", channel)
+		path, err := texturePath(blend, material, files, channel)
 		if err != nil {
 			return 0, err
 		}
@@ -257,13 +285,44 @@ func (a *App) BridgeTexture(blend string, pngs map[string]string, strength float
 	b := a.bridge
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	s := b.state(blend)
-	s.Texture++
-	s.Color = paths["color"]
-	s.Emission = paths["emission"]
-	s.Roughness = paths["roughness"]
-	s.Strength = strength
-	return s.Texture, nil
+	t := b.state(blend).Textures[material]
+	if t == nil {
+		t = &textureState{}
+		b.state(blend).Textures[material] = t
+	}
+	t.Version++
+	t.Color = paths["color"]
+	t.Emission = paths["emission"]
+	t.Roughness = paths["roughness"]
+	t.Strength = strength
+	return t.Version, nil
+}
+
+// texturePath is the file a channel goes to: the material's own image, as a PNG,
+// or one named after the material beside the .blend.
+func texturePath(blend, material string, files map[string]string, channel string) (string, error) {
+	png := func(p string) string { return strings.TrimSuffix(p, filepath.Ext(p)) + ".png" }
+	if p := files[channel]; filepath.IsAbs(p) {
+		if !channelNames[channel] {
+			return "", fmt.Errorf("no channel %q", channel)
+		}
+		return png(p), nil
+	}
+	color := filepath.Join(filepath.Dir(blend), fileName(material)+".png")
+	if p := files["color"]; filepath.IsAbs(p) {
+		color = png(p)
+	}
+	return channelPath(color, channel)
+}
+
+// fileName keeps letters, digits, dot, dash and underscore of a material's name.
+func fileName(material string) string {
+	return strings.Map(func(r rune) rune {
+		if r == '.' || r == '-' || r == '_' || r >= '0' && r <= '9' || r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' {
+			return r
+		}
+		return '_'
+	}, material)
 }
 
 var channelNames = map[string]bool{"color": true, "emission": true, "ao": true, "roughness": true}
@@ -315,12 +374,14 @@ func writePNG(path, b64 string) error {
 	return os.WriteFile(path, data, 0o644)
 }
 
-// BridgeRequestSync asks the add-on of a .blend to send its objects again.
-func (a *App) BridgeRequestSync(blend string) {
+// BridgeRequestSync asks the add-on of a .blend to send the objects with a material again.
+func (a *App) BridgeRequestSync(blend, material string) {
 	if a.bridge == nil {
 		return
 	}
 	a.bridge.mu.Lock()
 	defer a.bridge.mu.Unlock()
-	a.bridge.state(blend).Sync++
+	s := a.bridge.state(blend)
+	s.Sync++
+	s.SyncOf = material
 }

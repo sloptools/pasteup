@@ -53,3 +53,24 @@ func TestKeepBacksUpFilesItDidNotWrite(t *testing.T) {
 		t.Fatalf("file holds %q", data)
 	}
 }
+
+func TestTexturePath(t *testing.T) {
+	cases := []struct {
+		files   map[string]string
+		channel string
+		want    string
+	}{
+		{nil, "color", "/scene/Lamp_Shade.png"},
+		{nil, "emission", "/scene/Lamp_Shade_emission.png"},
+		{map[string]string{"color": "/tex/lamp.jpg"}, "color", "/tex/lamp.png"},
+		{map[string]string{"color": "/tex/lamp.png"}, "roughness", "/tex/lamp_roughness.png"},
+		{map[string]string{"color": "/tex/lamp.png", "emission": "/tex/glow.png"}, "emission", "/tex/glow.png"},
+		{map[string]string{"color": "relative.png"}, "color", "/scene/Lamp_Shade.png"},
+	}
+	for _, c := range cases {
+		got, err := texturePath("/scene/room.blend", "Lamp Shade", c.files, c.channel)
+		if err != nil || got != c.want {
+			t.Errorf("%v %s: %q %v, want %q", c.files, c.channel, got, err, c.want)
+		}
+	}
+}

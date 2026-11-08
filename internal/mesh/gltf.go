@@ -22,6 +22,8 @@ type Model struct {
 	// Parts are node names, indexed by Tri.Part.
 	Parts []string
 	sets  map[string]int
+	// Only faces of this material, when set.
+	material string
 }
 
 type gltfDoc struct {
@@ -43,8 +45,12 @@ type gltfDoc struct {
 			Attributes map[string]int `json:"attributes"`
 			Indices    *int           `json:"indices"`
 			Mode       *int           `json:"mode"`
+			Material   *int           `json:"material"`
 		} `json:"primitives"`
 	} `json:"meshes"`
+	Materials []struct {
+		Name string `json:"name"`
+	} `json:"materials"`
 	Accessors []struct {
 		BufferView    *int   `json:"bufferView"`
 		ByteOffset    int    `json:"byteOffset"`
@@ -61,15 +67,16 @@ type gltfDoc struct {
 
 // LoadGLB reads the triangles of a binary glTF with embedded buffers. Sets picks
 // the UV set per node name; nodes not listed use the first.
-func LoadGLB(path string, sets map[string]int) (*Model, error) {
+func LoadGLB(path string, sets map[string]int, material string) (*Model, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
-	return ParseGLB(data, sets)
+	return ParseGLB(data, sets, material)
 }
 
-func ParseGLB(data []byte, sets map[string]int) (*Model, error) {
+// ParseGLB reads the triangles; with a material name, only the faces that have it.
+func ParseGLB(data []byte, sets map[string]int, material string) (*Model, error) {
 	doc, bin, err := parseGLB(data)
 	if err != nil {
 		return nil, err
@@ -84,13 +91,16 @@ func ParseGLB(data []byte, sets map[string]int) (*Model, error) {
 		}
 	}
 
-	m := &Model{sets: sets}
+	m := &Model{sets: sets, material: material}
 	for _, n := range roots {
 		if err := m.addNode(doc, bin, n, identity()); err != nil {
 			return nil, err
 		}
 	}
 	if len(m.Tris) == 0 {
+		if material != "" {
+			return nil, fmt.Errorf("no faces with the material %q", material)
+		}
 		return nil, errors.New("model has no triangles")
 	}
 	return m, nil
@@ -130,6 +140,9 @@ func (m *Model) addNode(doc *gltfDoc, bin []byte, index int, parent mat4) error 
 		m.Parts = append(m.Parts, node.Name)
 		for _, prim := range doc.Meshes[*node.Mesh].Primitives {
 			if prim.Mode != nil && *prim.Mode != 4 {
+				continue
+			}
+			if m.material != "" && (prim.Material == nil || *prim.Material >= len(doc.Materials) || doc.Materials[*prim.Material].Name != m.material) {
 				continue
 			}
 			if err := m.addPrimitive(doc, bin, prim.Attributes, prim.Indices, part, m.sets[node.Name], world); err != nil {

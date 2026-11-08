@@ -55,18 +55,22 @@ func (a *App) OpenModel(path string) (*Layout, error) {
 		}
 	}
 
-	return loadLayout(path, path, nil)
+	return loadLayout(path, path, nil, "")
 }
 
-// loadLayout reads the UVs of a GLB; path names the layout, which can be the .blend
-// the GLB came from.
-func loadLayout(glb, path string, sets map[string]int) (*Layout, error) {
-	m, err := mesh.LoadGLB(glb, sets)
+// loadLayout reads the UVs of a GLB, with a material only its faces; the layout
+// is named after the material, or the path, which can be the .blend the GLB came from.
+func loadLayout(glb, path string, sets map[string]int, material string) (*Layout, error) {
+	m, err := mesh.LoadGLB(glb, sets, material)
 	if err != nil {
 		return nil, err
 	}
+	name := material
+	if name == "" {
+		name = strings.TrimSuffix(filepath.Base(path), filepath.Ext(path))
+	}
 	l := &Layout{
-		Name:      strings.TrimSuffix(filepath.Base(path), filepath.Ext(path)),
+		Name:      name,
 		Path:      path,
 		UVs:       make([]float32, 0, len(m.Tris)*6),
 		Islands:   mesh.Islands(m.Tris),

@@ -11,6 +11,7 @@
   import { activeLayer, app, channels, masking, say, sizes, tiles } from './lib/state.svelte'
   import { present, show } from './lib/channels'
   import { bridge } from './lib/bridge.svelte'
+  import { addTexture, blank, removeTexture, switchTo } from './lib/textures.svelte'
   import { redo, track, undo } from './lib/history.svelte'
   import { addAdjust, duplicate, move, newLayer, setSize } from './lib/layerOps'
   import Tools from './lib/Tools.svelte'
@@ -60,6 +61,15 @@
     } catch (err) {
       say(String(err))
     }
+  }
+
+  // New and remove run from the texture list, which then shows the texture again.
+  function chooseTexture(select: HTMLSelectElement) {
+    const value = select.value
+    select.value = app.texture
+    if (value === ':new') addTexture({ name: `texture ${app.textures.length + 1}`, material: null, files: {} }, blank())
+    else if (value === ':remove') removeTexture(app.texture)
+    else switchTo(value)
   }
 
   function toggleRefs(max: boolean) {
@@ -193,12 +203,22 @@
     <span class="title" title={project.path ?? 'not saved yet'}>{projectName()}{#if dirty()}<span class="unsaved" title="unsaved changes">●</span>{/if}</span>
     <button class="text-button" title="Open a project or a model (⌘O)" onclick={() => openAny(openModel)}>open</button>
     <button class="text-button" title="Save (⌘S), save as (⌘⇧S)" onclick={() => save()}>save</button>
-    <span class="model mono" title="The model whose UVs show"><span class="label">model</span> {app.layout?.name ?? 'none'}</span>
+    <select class="textures mono" title="The texture shown; one per Blender material" value={app.texture} onchange={(e) => chooseTexture(e.currentTarget)}>
+      {#each app.textures as t}<option value={t.id}>{t.name}</option>{/each}
+      <option disabled>──</option>
+      <option value=":new">new texture</option>
+      {#if app.textures.length > 1}<option value=":remove">remove this one</option>{/if}
+    </select>
     {#if app.blend}
       <span class="blender mono" class:live={bridge.live}>
         <span class="dot"></span>blender {bridge.live ? 'live' : 'offline'}
       </span>
-      <button class="text-button" title="Get the objects from Blender again" disabled={!bridge.live} onclick={() => bridge.requestSync()}>sync</button>
+      <button class="text-button" title="Get this material's objects from Blender again" disabled={!bridge.live} onclick={() => bridge.requestSync()}>sync</button>
+      <button class="check" class:on={app.follow} title="Show the texture of the object selected in Blender" onclick={() => (app.follow = !app.follow)}><span class="box"></span>follow</button>
+      {#if app.unknown && bridge.live}
+        <span class="unknown mono">{app.unknown.object}: not in pasteup</span>
+        <button class="text-button" title="Texture this object's material in pasteup" onclick={() => bridge.requestSync(app.unknown!.material || app.unknown!.object)}>add</button>
+      {/if}
     {/if}
     <div class="spacer"></div>
     <span class="tile-label mono">tile</span>
@@ -318,10 +338,18 @@
     font-weight: 600;
     color: var(--strong);
   }
-  .model .label {
-    color: var(--faint);
+  .textures {
+    height: 24px;
+    max-width: 180px;
+    padding: 0 6px;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: var(--bg);
+    color: var(--fg);
+    font: 12px var(--mono);
+    outline: none;
   }
-  .model {
+  .unknown {
     font: 12px var(--mono);
     color: var(--dim);
   }
