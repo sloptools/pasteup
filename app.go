@@ -10,6 +10,7 @@ import (
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 
+	"pasteup/internal/grunge"
 	"pasteup/internal/mesh"
 )
 
@@ -106,9 +107,24 @@ func (a *App) OpenPhotos() ([]string, error) {
 
 var imageExt = map[string]bool{".png": true, ".jpg": true, ".jpeg": true, ".webp": true}
 
-// middleware serves dropped photos, which are too large for bindings.
+// GrungeMaps lists the built-in grunge maps, served at /grunge?name=.
+func (a *App) GrungeMaps() []string {
+	return grunge.Names()
+}
+
+// middleware serves dropped photos and the grunge maps, which are too large for bindings.
 func (a *App) middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/grunge" {
+			data, err := grunge.PNG(r.URL.Query().Get("name"))
+			if err != nil {
+				http.Error(w, "no such map", http.StatusNotFound)
+				return
+			}
+			w.Header().Set("Content-Type", "image/png")
+			w.Write(data)
+			return
+		}
 		if r.URL.Path != "/photo" {
 			next.ServeHTTP(w, r)
 			return

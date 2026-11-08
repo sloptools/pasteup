@@ -40,35 +40,39 @@ export class Stroke {
   canvas: HTMLCanvasElement
   private mask: HTMLCanvasElement
   private paint: CanvasRenderingContext2D
-  // The mask cut to the selection, when there is one.
+  // The mask cut to where paint may land (selection, island), when limited.
   private kept: HTMLCanvasElement | null = null
   private rows: Rows
 
   private erase: boolean
   private opacity: number
-  private selection: HTMLCanvasElement | null
+  private clip: HTMLCanvasElement | null
+  // Tile mode: offsets of the texture's copies, [0, 0] alone without it.
+  private copies: [number, number][]
 
   constructor(
     private source: HTMLCanvasElement,
     // From texels to the piece's pixels.
     private toPiece: DOMMatrix,
     size: number,
-    o: { color: string; tipSize: number; tip: Tip; erase: boolean; opacity: number; selection: HTMLCanvasElement | null },
+    o: { color: string; tipSize: number; tip: Tip; erase: boolean; opacity: number; clip: HTMLCanvasElement | null; wrap: { x: boolean; y: boolean } },
   ) {
+    this.copies = []
+    for (const dx of o.wrap.x ? [-size, 0, size] : [0]) for (const dy of o.wrap.y ? [-size, 0, size] : [0]) this.copies.push([dx, dy])
     this.erase = o.erase
     this.opacity = o.opacity
-    this.selection = o.selection
+    this.clip = o.clip
     this.canvas = blank(source.width, source.height)
     this.mask = blank(size, size)
     this.paint = this.mask.getContext('2d')!
     this.paint.fillStyle = o.color
     this.rows = footprint(o.tipSize, o.tip)
-    if (o.selection) this.kept = blank(size, size)
+    if (o.clip) this.kept = blank(size, size)
   }
 
   // A row of texels, for shapes.
   span(x: number, y: number, w: number) {
-    this.paint.fillRect(x, y, w, 1)
+    for (const [dx, dy] of this.copies) this.paint.fillRect(x + dx, y + dy, w, 1)
   }
 
   // A texel mask drawn in, for fills; it takes the stroke's color.
@@ -80,24 +84,29 @@ export class Stroke {
     p.globalCompositeOperation = 'source-over'
   }
 
+  // Colored texels drawn in as they are, for gradients.
+  image(texels: HTMLCanvasElement) {
+    this.paint.drawImage(texels, 0, 0)
+  }
+
   // Starts the mask over, for shapes redrawn while dragging.
   reset() {
     this.paint.clearRect(0, 0, this.mask.width, this.mask.height)
   }
 
   dot(x: number, y: number) {
-    for (const [dy, dx, w] of this.rows) this.paint.fillRect(x + dx, y + dy, w, 1)
+    for (const [dy, dx, w] of this.rows) this.span(x + dx, y + dy, w)
   }
 
   // Lays the mask onto the source into canvas; call after dots and lines.
   flush() {
     let mask = this.mask
-    if (this.kept && this.selection) {
+    if (this.kept && this.clip) {
       const k = this.kept.getContext('2d')!
       k.globalCompositeOperation = 'copy'
       k.drawImage(this.mask, 0, 0)
       k.globalCompositeOperation = 'destination-in'
-      k.drawImage(this.selection, 0, 0)
+      k.drawImage(this.clip, 0, 0)
       mask = this.kept
     }
     const ctx = this.canvas.getContext('2d', { willReadFrequently: true })!
@@ -107,8 +116,11 @@ export class Stroke {
     ctx.globalAlpha = this.opacity
     ctx.globalCompositeOperation = this.erase ? 'destination-out' : 'source-over'
     ctx.imageSmoothingEnabled = false
-    ctx.setTransform(this.toPiece)
-    ctx.drawImage(mask, 0, 0)
+    // Each copy of the texture shows the piece shifted, so the mask lands through each.
+    for (const [dx, dy] of this.copies) {
+      ctx.setTransform(this.toPiece.translate(-dx, -dy))
+      ctx.drawImage(mask, 0, 0)
+    }
     ctx.resetTransform()
   }
 

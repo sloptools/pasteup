@@ -1,4 +1,5 @@
 import type { Composer } from './compose'
+import { newMask } from './grunge.svelte'
 import { activeLayer, addLayer, app, cloneLayer, neutral, newId, removeLayer } from './state.svelte'
 
 export function duplicate() {
@@ -44,6 +45,19 @@ export function mergeDown(composer: Composer) {
   )
 }
 
+// A new texture size: the layers scale along, so the texture looks the same at the new resolution.
+export function setSize(size: number) {
+  const f = size / app.size
+  if (f === 1) return
+  for (const l of app.layers) {
+    l.x *= f
+    l.y *= f
+    l.scaleX *= f
+    l.scaleY *= f
+  }
+  app.size = size
+}
+
 // Untransformed placement at texture size: one canvas pixel per texel.
 const identity = () => ({ x: app.size / 2, y: app.size / 2, scaleX: 1, scaleY: 1, turns: 0, flipX: false, flipY: false })
 
@@ -59,6 +73,17 @@ export function newLayer() {
   const l = activeLayer()
   const at = l ? app.layers.indexOf(l) + 1 : app.layers.length
   addLayer({ name: 'paint', canvas: blank(), island: null, ...identity() }, at)
+}
+
+// A layer of the primary color with a grunge mask, for dirt, rust and grime.
+export function newGrunge() {
+  const l = activeLayer()
+  const at = l ? app.layers.indexOf(l) + 1 : app.layers.length
+  const canvas = blank()
+  const ctx = canvas.getContext('2d')!
+  ctx.fillStyle = app.colors[0]
+  ctx.fillRect(0, 0, canvas.width, canvas.height)
+  addLayer({ name: 'grunge', canvas, island: null, mask: newMask(), ...identity() }, at)
 }
 
 // An adjustment layer above the active one.

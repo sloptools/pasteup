@@ -8,11 +8,12 @@
   import { copy, cut, discard, paste, place } from './lib/clipboard'
   import { all, invert, selection } from './lib/selection'
   import { addPaths } from './lib/photos'
-  import { activeLayer, app, say, sizes } from './lib/state.svelte'
+  import { activeLayer, app, say, sizes, tiles } from './lib/state.svelte'
   import { bridge } from './lib/bridge.svelte'
   import { redo, track, undo } from './lib/history.svelte'
-  import { addAdjust, duplicate, move, newLayer } from './lib/layerOps'
+  import { addAdjust, duplicate, move, newLayer, setSize } from './lib/layerOps'
   import Tools from './lib/Tools.svelte'
+  import { loadNames } from './lib/grunge.svelte'
   import ColorPanel from './lib/ColorPanel.svelte'
   import ToolOptions from './lib/ToolOptions.svelte'
   import { ExportPNG, OpenModel } from '../wailsjs/go/main/App'
@@ -66,7 +67,10 @@
       toggleRefs(e.shiftKey)
       return
     }
+    if (canvas.gradientKey(e)) return e.preventDefault()
     if (e.metaKey) {
+      // Undo while a gradient is set up drops it first.
+      if (e.key.toLowerCase() === 'z' && app.gradientAim) canvas.cancelGradient()
       if (metaKey(e)) e.preventDefault()
       return
     }
@@ -86,6 +90,10 @@
     if (app.focus === 'refs' && app.refs !== 'closed') handled = refs.key(e) || refKey(e)
     else if (app.focus === 'layers') handled = layersKey(e)
     else handled = canvasKey(e)
+    if (!handled && app.focus === 'canvas' && e.key === 'o') {
+      canvas.offset()
+      handled = true
+    }
     if (handled) e.preventDefault()
   }
 
@@ -128,6 +136,7 @@
 
   onMount(() => {
     track()
+    loadNames()
     if (!wails) return
     bridge.start(() => canvas.png())
     OnFileDrop((x, y, paths) => {
@@ -153,9 +162,15 @@
       <button class="text-button" title="Get the objects from Blender again" disabled={!bridge.live} onclick={() => bridge.requestSync()}>sync</button>
     {/if}
     <div class="spacer"></div>
+    <span class="tile-label mono">tile</span>
+    <div class="seg" title="Tile mode: neighbors around the texture, paint and layers wrap (⇧T); O shifts the view by half">
+      {#each tiles as t}
+        <button class:on={app.tile === t} onclick={() => (app.tile = t)}>{t}</button>
+      {/each}
+    </div>
     <div class="seg">
       {#each sizes as s}
-        <button class:on={app.size === s} onclick={() => (app.size = s)}>{s}</button>
+        <button class:on={app.size === s} onclick={() => setSize(s)}>{s}</button>
       {/each}
     </div>
     <button class="text-button" title="Export the texture as PNG (⌘⇧E)" onclick={exportPNG}>export</button>
@@ -291,6 +306,11 @@
     flex: 1;
     min-height: 0;
     min-width: 0;
+  }
+  .tile-label {
+    flex: none;
+    font: 12px var(--mono);
+    color: var(--dim);
   }
   .selected {
     flex: none;

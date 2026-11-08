@@ -3,7 +3,8 @@
   import Slider from './Slider.svelte'
   import ContextMenu, { type Item } from './ContextMenu.svelte'
   import { activeLayer, app, blends, neutral, removeLayer, type Adjust, type Layer } from './state.svelte'
-  import { addAdjust, duplicate, newLayer } from './layerOps'
+  import { addAdjust, duplicate, newGrunge, newLayer } from './layerOps'
+  import { generated, grunge, newMask, scaleFor } from './grunge.svelte'
 
   let { onmerge }: { onmerge: () => void } = $props()
   const active = $derived(activeLayer())
@@ -29,6 +30,7 @@
     const items: Item[] = [
       { label: 'new layer', key: '⌘⇧N', action: newLayer },
       { label: 'new adjustment', key: '⌘⇧A', action: addAdjust },
+      { label: 'new grunge layer', action: newGrunge },
     ]
     const l = row && activeLayer()
     if (l) {
@@ -99,6 +101,12 @@
     armed = null
   }
 
+  function setMask(l: Layer, map: string) {
+    if (!map) l.mask = null
+    else if (l.mask) Object.assign(l.mask, { map, scale: scaleFor(map) })
+    else l.mask = newMask(map)
+  }
+
   function rename(l: Layer, name: string) {
     if (app.renaming !== l.id) return
     if (name.trim()) l.name = name.trim()
@@ -143,7 +151,7 @@
           <span class="name">{l.name}</span>
         {/if}
         <span class="island mono">
-          {[l.blend === 'normal' ? '' : l.blend, l.opacity < 1 ? Math.round(l.opacity * 100) : '', l.island === null ? '' : `island ${l.island}`]
+          {[l.blend === 'normal' ? '' : l.blend, l.opacity < 1 ? Math.round(l.opacity * 100) : '', l.island === null ? '' : `island ${l.island}`, l.mask ? 'mask' : '']
             .filter(Boolean)
             .join(' · ')}
         </span>
@@ -180,11 +188,33 @@
           {/each}
         </div>
       {/if}
+      <div class="props">
+        <select class="mono" title="Grunge mask: the layer shows only where it does" value={active.mask?.map ?? ''} onchange={(e) => setMask(active, e.currentTarget.value)}>
+          <option value="">no mask</option>
+          {#each [...generated, ...grunge.names] as name}<option value={name}>{name.replace('_', ' ')}</option>{/each}
+        </select>
+        {#if active.mask}
+          <div class="spacer"></div>
+          <button class="check" class:on={active.mask.invert} title="Show where the mask hides" onclick={() => active.mask && (active.mask.invert = !active.mask.invert)}>
+            <span class="box"></span>invert
+          </button>
+        {/if}
+      </div>
+      {#if active.mask}
+        {@const mask = active.mask}
+        <div class="adjust">
+          <Slider bind:value={mask.scale} label={mask.map === 'noise' ? 'block' : 'scale'} min={1} max={16} step={1} title={mask.map === 'noise' ? 'Block size in texels' : 'Repeats across the texture'} />
+          <Slider bind:value={mask.level} label="level" min={-1} max={1} step={0.01} scale={100} reset={0} title="How much shows; double-click resets" />
+          <Slider bind:value={mask.contrast} label="contrast" min={0} max={1} step={0.01} scale={100} title="Soft to hard edges" />
+          <Slider bind:value={mask.seed} label="seed" min={1} max={99} step={1} title="Another variant" />
+        </div>
+      {/if}
     </div>
   {/if}
   <div class="actions">
     <button class="icon" title="New layer to paint on (⌘⇧N)" onclick={newLayer}><Icon name="layer" /></button>
     <button class="icon" title="Adjustment layer (⌘⇧A)" onclick={addAdjust}><Icon name="adjust" /></button>
+    <button class="icon" title="Grunge layer in the primary color" onclick={newGrunge}><Icon name="grunge" /></button>
     <button class="icon" title="Duplicate (⌘J)" disabled={!active} onclick={duplicate}><Icon name="duplicate" /></button>
     <button class="icon" title="Merge down (⌘E)" disabled={!active} onclick={onmerge}><Icon name="merge" /></button>
     <div class="spacer"></div>
@@ -217,7 +247,7 @@
     flex: 1;
   }
   .adjust {
-    --label-width: 48px;
+    --label-width: 60px;
     display: grid;
     gap: 2px;
     padding: 0 6px 8px;

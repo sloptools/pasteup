@@ -1,8 +1,9 @@
 import { app, cloneLayer, type Layer } from './state.svelte'
 
-// Undo over the layers: a snapshot once edits rest, so a drag or a run of key
-// presses is one step. Pieces are never changed in place, so snapshots share them.
-type Snap = { layers: Layer[]; active: string | null }
+// Undo over the layers and the texture size: a snapshot once edits rest, so a drag
+// or a run of key presses is one step. Pieces are never changed in place, so
+// snapshots share them.
+type Snap = { layers: Layer[]; active: string | null; size: number }
 
 const limit = 100
 let past: Snap[] = []
@@ -14,8 +15,8 @@ let restoring = false
 
 const copy = (layers: Layer[]): Layer[] => layers.map(cloneLayer)
 
-function key(layers: Layer[]) {
-  return JSON.stringify(layers, (k, v) => (k === 'canvas' && v ? canvasKey(v) : v))
+function key(layers: Layer[], size: number) {
+  return size + JSON.stringify(layers, (k, v) => (k === 'canvas' && v ? canvasKey(v) : v))
 }
 
 const keys = new WeakMap<HTMLCanvasElement, number>()
@@ -29,12 +30,12 @@ function commit() {
   clearTimeout(timer)
   timer = 0
   const layers = copy(app.layers)
-  const k = key(layers)
+  const k = key(layers, app.size)
   if (k === lastKey) return
   if (last) past.push(last)
   if (past.length > limit) past.shift()
   future = []
-  last = { layers, active: app.active }
+  last = { layers, active: app.active, size: app.size }
   lastKey = k
 }
 
@@ -46,7 +47,7 @@ export function checkpoint() {
 export function track() {
   $effect.root(() => {
     $effect(() => {
-      key(app.layers)
+      key(app.layers, app.size)
       if (restoring) {
         restoring = false
         return
@@ -60,9 +61,10 @@ export function track() {
 function restore(s: Snap) {
   restoring = true
   last = s
-  lastKey = key(s.layers)
+  lastKey = key(s.layers, s.size)
   app.layers = copy(s.layers)
   app.active = s.active
+  app.size = s.size
 }
 
 export function undo() {

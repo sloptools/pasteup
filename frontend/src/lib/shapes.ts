@@ -41,7 +41,16 @@ export function ellipse(a: [number, number], b: [number, number], filled: boolea
 }
 
 // Texels like the one at x, y: touching it, or anywhere when not contiguous.
-export function flood(pixels: Uint8ClampedArray, size: number, x: number, y: number, tolerance: number, contiguous: boolean): Uint8Array {
+// Across the edges in tile mode.
+export function flood(
+  pixels: Uint8ClampedArray,
+  size: number,
+  x: number,
+  y: number,
+  tolerance: number,
+  contiguous: boolean,
+  wrap = { x: false, y: false },
+): Uint8Array {
   const mask = new Uint8Array(size * size)
   if (x < 0 || y < 0 || x >= size || y >= size) return mask
   const o = (y * size + x) * 4
@@ -63,8 +72,13 @@ export function flood(pixels: Uint8ClampedArray, size: number, x: number, y: num
   while (stack.length) {
     const i = stack.pop()!
     const ix = i % size
-    for (const n of [ix > 0 ? i - 1 : -1, ix < size - 1 ? i + 1 : -1, i - size, i + size]) {
-      if (n < 0 || n >= mask.length || mask[n] || !like(n)) continue
+    const iy = (i - ix) / size
+    const left = ix > 0 ? i - 1 : wrap.x ? i + size - 1 : -1
+    const right = ix < size - 1 ? i + 1 : wrap.x ? i - size + 1 : -1
+    const up = iy > 0 ? i - size : wrap.y ? i + size * (size - 1) : -1
+    const down = iy < size - 1 ? i + size : wrap.y ? ix : -1
+    for (const n of [left, right, up, down]) {
+      if (n < 0 || mask[n] || !like(n)) continue
       mask[n] = 1
       stack.push(n)
     }

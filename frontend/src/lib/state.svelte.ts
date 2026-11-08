@@ -1,5 +1,7 @@
 import type { main } from '../../wailsjs/go/models'
 import type { Selection } from './selection'
+import type { Aim } from './gradientEdit'
+import type { Mask } from './grunge.svelte'
 
 export type Layout = main.Layout
 
@@ -30,6 +32,8 @@ export type Layer = {
   flipY: boolean
   // UV island the layer is clipped to.
   island: number | null
+  // Grunge mask: the layer shows only where it does.
+  mask: Mask | null
   visible: boolean
   opacity: number
   blend: Blend
@@ -54,6 +58,10 @@ export type Blend = (typeof blends)[number]
 
 export type Region = 'refs' | 'canvas' | 'layers'
 
+export const tiles = ['off', 'x', 'y', 'xy'] as const
+export type Tile = (typeof tiles)[number]
+export const wraps = (t: Tile) => ({ x: t === 'x' || t === 'xy', y: t === 'y' || t === 'xy' })
+
 export type CanvasTool = 'move' | 'transform' | 'island' | 'select' | 'brush' | 'eraser' | 'fill' | 'shape'
 export const selectModes = ['rect', 'lasso'] as const
 export type SelectMode = (typeof selectModes)[number]
@@ -63,6 +71,8 @@ export type ColorTool = PaintTool | 'fill' | 'shape'
 export const colorTools: CanvasTool[] = ['brush', 'eraser', 'fill', 'shape']
 export const shapes = ['rect', 'rect filled', 'ellipse', 'ellipse filled'] as const
 export type Shape = (typeof shapes)[number]
+export const fillModes = ['bucket', 'gradient'] as const
+export type FillMode = (typeof fillModes)[number]
 export const tips = ['round', 'square'] as const
 export type Tip = (typeof tips)[number]
 
@@ -92,9 +102,18 @@ export const app = $state({
   paintOpacity: { brush: 1, eraser: 1, fill: 1, shape: 1 } as Record<ColorTool, number>,
   // Fill: how far colors may differ, only touching texels, sampling all visible layers.
   fill: { tolerance: 0, contiguous: true, merged: false },
+  fillMode: 'bucket' as FillMode,
+  // Gradient from the primary to the secondary color, or to clear.
+  gradient: { radial: false, dither: false, clear: true },
+  // The gradient being set up, until Enter applies it.
+  gradientAim: null as Aim | null,
   shape: 'rect' as Shape,
   // Outline width in texels.
   shapeWidth: 1,
+  // Brush, fill and shapes keep to the UV island the stroke starts in.
+  islandClip: false,
+  // Tile mode: the canvas shows neighbors, and paint and layers wrap at the edges.
+  tile: 'off' as Tile,
   // Primary and secondary color; the right mouse button paints with the secondary.
   colors: ['#a89c88', '#3a342c'] as [string, string],
   swatches: ['#1c1a17', '#3a342c', '#5e554a', '#857a6a', '#a89c88', '#cfc6b4', '#6b4a32', '#8c6a3c', '#4a5a3a', '#3c4c5c', '#7a3a2a', '#b08a4a'],
@@ -128,10 +147,10 @@ export function removeLayer(id: string) {
 }
 
 // A new layer above the others, made active.
-type NewLayer = Omit<Layer, 'id' | 'visible' | 'opacity' | 'blend' | 'clip' | 'adjust'> & Partial<Layer>
+type NewLayer = Omit<Layer, 'id' | 'visible' | 'opacity' | 'blend' | 'clip' | 'adjust' | 'mask'> & Partial<Layer>
 
 export function addLayer(l: NewLayer, at = app.layers.length) {
-  const layer: Layer = { visible: true, opacity: 1, blend: 'normal', clip: false, adjust: null, ...l, id: newId() }
+  const layer: Layer = { visible: true, opacity: 1, blend: 'normal', clip: false, adjust: null, mask: null, ...l, id: newId() }
   app.layers.splice(at, 0, layer)
   app.active = layer.id
 }
@@ -141,5 +160,5 @@ export function clipBase(index: number): Layer | undefined {
   for (let i = index - 1; i >= 0; i--) if (!app.layers[i].clip) return app.layers[i]
 }
 
-// Adjustments are the only nested part of a layer.
-export const cloneLayer = (l: Layer): Layer => ({ ...l, adjust: l.adjust && { ...l.adjust } })
+// Adjustment and mask are the nested parts of a layer.
+export const cloneLayer = (l: Layer): Layer => ({ ...l, adjust: l.adjust && { ...l.adjust }, mask: l.mask && { ...l.mask } })

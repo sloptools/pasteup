@@ -1,6 +1,7 @@
 import { CanvasSource, Container, Graphics, RenderTexture, Sprite, Texture, type Renderer } from 'pixi.js'
 import { AdjustPass } from './adjust'
 import { BlendPass } from './blend'
+import { eraser, grunge } from './grunge.svelte'
 import { eachFace } from './uv'
 import { exact, matrix, place, raster } from './transform'
 import type { Layer, Layout } from './state.svelte'
@@ -20,6 +21,8 @@ export class Composer {
   private live: { id: string; canvas: HTMLCanvasElement; rev: number } | null = null
   private layers = new Map<string, { rt: RenderTexture; sig: string }>()
   private masks = new Map<string, RenderTexture>()
+  // Tile mode: layers past an edge come back in on the other side.
+  wrap = { x: false, y: false }
   private layout: Layout | null = null
 
   constructor(
@@ -36,10 +39,13 @@ export class Composer {
     return RenderTexture.create({ width: size, height: size, scaleMode: 'nearest' })
   }
 
+  // New textures rather than resized ones: sprites showing the old ones keep their old size.
   resize(size: number) {
     if (this.target.width === size) return
-    this.target.resize(size, size)
-    for (const rt of this.acc) rt.resize(size, size)
+    this.target.destroy(true)
+    for (const rt of this.acc) rt.destroy(true)
+    this.target = this.texture(size)
+    this.acc = [this.texture(size), this.texture(size)]
     this.dropMasks()
   }
 
@@ -107,16 +113,24 @@ export class Composer {
     const live = this.live?.id === l.id ? this.live : null
     const canvas = live?.canvas ?? l.canvas!
     const size = this.target.width
-    const sig = [idOf(canvas), live?.rev, l.x, l.y, l.scaleX, l.scaleY, l.turns, l.flipX, l.flipY, l.island, size, layout && idOf(layout)].join()
+    const sig = [idOf(canvas), live?.rev, l.x, l.y, l.scaleX, l.scaleY, l.turns, l.flipX, l.flipY, l.island, size, layout && idOf(layout), this.wrap.x, this.wrap.y, JSON.stringify(l.mask), grunge.loaded].join()
     const entry = this.entry(l.id)
     if (entry.sig === sig) return entry.rt
 
     const scene = new Container()
+    const pixels = new Container()
     const shown = this.shown(l, canvas)
-    const sprite = new Sprite(this.piece(shown))
-    if (shown === canvas) place(sprite, l)
-    else sprite.position.set(raster(l).x, raster(l).y)
-    scene.addChild(sprite)
+    for (const dx of this.wrap.x ? [-size, 0, size] : [0]) {
+      for (const dy of this.wrap.y ? [-size, 0, size] : [0]) {
+        const sprite = new Sprite(this.piece(shown))
+        if (shown === canvas) place(sprite, l)
+        else sprite.position.set(raster(l).x, raster(l).y)
+        sprite.position.x += dx
+        sprite.position.y += dy
+        pixels.addChild(sprite)
+      }
+    }
+    scene.addChild(pixels)
     if (l.island !== null && layout) {
       const mask = new Graphics()
       eachFace(layout, l.island, (p) => {
@@ -124,10 +138,11 @@ export class Composer {
       })
       mask.fill(0xffffff)
       scene.addChild(mask)
-      sprite.mask = mask
+      pixels.mask = mask
     }
     this.renderer.render({ container: scene, target: entry.rt, clear: true, clearColor: [0, 0, 0, 0] })
     scene.destroy({ children: true })
+    this.applyMask(l, entry.rt)
     entry.sig = sig
     return entry.rt
   }
@@ -162,7 +177,21 @@ export class Composer {
     entry.sig = ''
     const mask = l.island !== null && layout ? this.mask(l.island, layout) : null
     this.adjustPass.draw(below, mask, l.adjust!, entry.rt)
+    this.applyMask(l, entry.rt)
     return entry.rt
+  }
+
+  // Cuts the layer's texture to its grunge mask.
+  private applyMask(l: Layer, rt: RenderTexture) {
+    const erase = l.mask && eraser(l.mask, rt.width)
+    if (!erase) return
+    // Pixi ignores the blend mode of the container it renders, so the sprite goes in one.
+    const scene = new Container()
+    const sprite = new Sprite(this.piece(erase))
+    sprite.blendMode = 'erase'
+    scene.addChild(sprite)
+    this.renderer.render({ container: scene, target: rt, clear: false })
+    scene.destroy({ children: true })
   }
 
   // Drops the textures of layers that are gone, and of pieces only undo still holds.
@@ -175,6 +204,10 @@ export class Composer {
     }
 
     const used = new Set(layers.filter((l) => l.canvas).map((l) => this.shown(l, l.canvas!)))
+    for (const l of layers) {
+      const erase = l.mask && eraser(l.mask, this.target.width)
+      if (erase) used.add(erase)
+    }
     if (this.live) used.add(this.live.canvas)
     for (const [canvas, tex] of this.pieces) {
       if (used.has(canvas)) continue
@@ -186,6 +219,7 @@ export class Composer {
   // The composite color at a texel, as #rrggbb, or null where it is empty.
   pick(x: number, y: number): string | null {
     const { pixels, width } = this.renderer.extract.pixels(this.target)
+    if (x < 0 || y < 0 || x >= width || y >= width) return null
     const o = (y * width + x) * 4
     const a = pixels[o + 3]
     if (!a) return null

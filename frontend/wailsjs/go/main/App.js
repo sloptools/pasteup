@@ -18,6 +18,10 @@ export function ExportPNG(arg1, arg2, arg3) {
   return window['go']['main']['App']['ExportPNG'](arg1, arg2, arg3);
 }
 
+export function GrungeMaps() {
+  return window['go']['main']['App']['GrungeMaps']();
+}
+
 export function OpenModel(arg1) {
   return window['go']['main']['App']['OpenModel'](arg1);
 }

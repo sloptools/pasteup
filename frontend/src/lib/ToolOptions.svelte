@@ -3,6 +3,7 @@
   import Slider from './Slider.svelte'
   import Icon from './Icon.svelte'
   import { discard, place } from './clipboard'
+  import { gradientControl } from './gradientEdit'
   import { box, fit, flip, turn } from './transform'
   import { activeLayer, app, selectModes, shapes, tips, type Layer, type Tip } from './state.svelte'
 
@@ -78,6 +79,12 @@
   </svg>
 {/snippet}
 
+{#snippet islandClip()}
+  <button class="check" class:on={app.islandClip} title={app.layout ? 'Keep to the UV island the stroke starts in (⇧I)' : 'Keeps to UV islands once a model is loaded (⇧I)'} onclick={() => (app.islandClip = !app.islandClip)}>
+    <span class="box"></span>island
+  </button>
+{/snippet}
+
 <div class="options">
   {#if app.canvasTool === 'brush' || app.canvasTool === 'eraser'}
     {@const tool = app.canvasTool}
@@ -93,17 +100,40 @@
         </div>
       {/if}
     </div>
-    <Slider bind:value={app.tipSize[tool]} label="size" min={1} max={64} step={1} title="Size in texels ([ ])" />
-    <Slider bind:value={app.paintOpacity[tool]} label="opacity" min={0.01} max={1} step={0.01} scale={100} title="Opacity (1–9, 0)" />
+    <Slider compact bind:value={app.tipSize[tool]} label="size" min={1} max={64} step={1} title="Size in texels ([ ])" />
+    <Slider compact bind:value={app.paintOpacity[tool]} label="opacity" min={0.01} max={1} step={0.01} scale={100} title="Opacity (1–9, 0)" />
+    {@render islandClip()}
+  {:else if app.canvasTool === 'fill' && app.fillMode === 'gradient'}
+    <div class="seg">
+      <button class:on={!app.gradient.radial} title="linear" onclick={() => (app.gradient.radial = false)}><Icon name="linear" size={11} /></button>
+      <button class:on={app.gradient.radial} title="radial, around the start" onclick={() => (app.gradient.radial = true)}><Icon name="radial" size={11} /></button>
+    </div>
+    <button class="check" class:on={app.gradient.dither} title="Each texel one color or the other, in a Bayer pattern" onclick={() => (app.gradient.dither = !app.gradient.dither)}>
+      <span class="box"></span>dither
+    </button>
+    <button class="check" class:on={app.gradient.clear} title="From the primary color to clear, instead of to the secondary" onclick={() => (app.gradient.clear = !app.gradient.clear)}>
+      <span class="box"></span>clear
+    </button>
+    {#if app.gradientAim}
+      {@const g = app.gradientAim}
+      <Slider compact bind:value={g.angle} label="angle" min={-180} max={180} step={1} title="Direction in degrees, 0 to the right, 90 down" />
+      <Slider compact bind:value={g.length} label="length" min={1} max={app.size * 2} step={1} title="Length in texels" />
+      <button class="turn" title="Apply (Enter)" onclick={gradientControl.apply}><Icon name="check" /></button>
+      <button class="turn" title="Discard (Esc)" onclick={gradientControl.cancel}><Icon name="x" /></button>
+    {:else}
+      {@render islandClip()}
+      <Slider compact bind:value={app.paintOpacity.fill} label="opacity" min={0.01} max={1} step={0.01} scale={100} title="Opacity (1–9, 0)" />
+    {/if}
   {:else if app.canvasTool === 'fill'}
-    <Slider bind:value={app.fill.tolerance} label="tolerance" min={0} max={255} step={1} title="How far colors may differ, 0–255" />
+    <Slider compact bind:value={app.fill.tolerance} label="tolerance" min={0} max={255} step={1} title="How far colors may differ, 0–255" />
     <button class="check" class:on={app.fill.contiguous} title="Only texels touching the clicked one" onclick={() => (app.fill.contiguous = !app.fill.contiguous)}>
       <span class="box"></span>contiguous
     </button>
     <button class="check" class:on={app.fill.merged} title="Compare colors of all visible layers, not just the active one" onclick={() => (app.fill.merged = !app.fill.merged)}>
       <span class="box"></span>all
     </button>
-    <Slider bind:value={app.paintOpacity.fill} label="opacity" min={0.01} max={1} step={0.01} scale={100} title="Opacity (1–9, 0)" />
+    <Slider compact bind:value={app.paintOpacity.fill} label="opacity" min={0.01} max={1} step={0.01} scale={100} title="Opacity (1–9, 0)" />
+    {@render islandClip()}
   {:else if app.canvasTool === 'shape'}
     <div class="seg">
       {#each shapes as shape}
@@ -111,9 +141,10 @@
       {/each}
     </div>
     {#if !app.shape.endsWith('filled')}
-      <Slider bind:value={app.shapeWidth} label="width" min={1} max={32} step={1} title="Outline width in texels ([ ])" />
+      <Slider compact bind:value={app.shapeWidth} label="width" min={1} max={32} step={1} title="Outline width in texels ([ ])" />
     {/if}
-    <Slider bind:value={app.paintOpacity.shape} label="opacity" min={0.01} max={1} step={0.01} scale={100} title="Opacity (1–9, 0)" />
+    <Slider compact bind:value={app.paintOpacity.shape} label="opacity" min={0.01} max={1} step={0.01} scale={100} title="Opacity (1–9, 0)" />
+    {@render islandClip()}
   {:else if app.canvasTool === 'select'}
     <div class="seg">
       {#each selectModes as mode}
@@ -151,8 +182,6 @@
 
 <style>
   .options {
-    --range-flex: 0 1 90px;
-    --range-width: auto;
     flex: 1;
     min-width: 0;
     display: flex;

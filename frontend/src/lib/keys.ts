@@ -1,4 +1,4 @@
-import { activeLayer, app, blends, removeLayer, selectModes, shapes, tips, colorTools, type CanvasTool, type ColorTool, type PaintTool } from './state.svelte'
+import { activeLayer, app, blends, removeLayer, say, tiles, fillModes, selectModes, shapes, tips, colorTools, type CanvasTool, type ColorTool, type PaintTool } from './state.svelte'
 import { clear, lift, place } from './clipboard'
 import { flip, scaleBy, turn } from './transform'
 
@@ -18,10 +18,22 @@ export function canvasKey(e: KeyboardEvent): boolean {
     case 'i':
       useTool('island')
       return true
+    case 'I':
+      app.islandClip = !app.islandClip
+      say(app.islandClip ? 'brush, fill and shapes keep to the island they start in' : 'island clip off')
+      return true
     case 't':
       useTool('transform')
       return true
+    case 'T':
+      app.tile = tiles[(tiles.indexOf(app.tile) + 1) % tiles.length]
+      say(`tile ${app.tile}`)
+      return true
     case 'g':
+      useTool('fill')
+      return true
+    case 'G':
+      if (app.canvasTool === 'fill') app.fillMode = fillModes[(fillModes.indexOf(app.fillMode) + 1) % fillModes.length]
       useTool('fill')
       return true
     case 'u':

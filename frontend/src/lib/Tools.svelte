@@ -1,7 +1,7 @@
 <script lang="ts">
   import Icon, { type IconName } from './Icon.svelte'
   import { useTool } from './keys'
-  import { app, selectModes, shapes, tips, type CanvasTool, type PaintTool, type SelectMode, type Shape, type Tip } from './state.svelte'
+  import { app, fillModes, selectModes, shapes, tips, type CanvasTool, type FillMode, type PaintTool, type SelectMode, type Shape, type Tip } from './state.svelte'
 
   type Variants = { options: readonly string[]; get: () => string; set: (v: string) => void }
   type Tool = { id: CanvasTool; label: string; key: string; icon: () => IconName; variants?: Variants }
@@ -21,7 +21,13 @@
     },
     { id: 'brush', label: 'brush', key: 'B', icon: () => 'brush', variants: tipsOf('brush') },
     { id: 'eraser', label: 'eraser', key: 'E', icon: () => 'eraser', variants: tipsOf('eraser') },
-    { id: 'fill', label: 'fill', key: 'G', icon: () => 'fill' },
+    {
+      id: 'fill',
+      label: 'fill',
+      key: 'G',
+      icon: () => (app.fillMode === 'bucket' ? 'fill' : 'gradient'),
+      variants: { options: fillModes, get: () => app.fillMode, set: (v) => (app.fillMode = v as FillMode) },
+    },
     {
       id: 'shape',
       label: 'shape',
