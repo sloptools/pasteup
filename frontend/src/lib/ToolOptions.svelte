@@ -101,6 +101,7 @@
       {/if}
     </div>
     <Slider compact bind:value={app.tipSize[tool]} label="size" min={1} max={64} step={1} title="Size in texels ([ ])" />
+    <Slider compact bind:value={app.hardness[tool]} label="hard" min={0} max={1} step={0.01} scale={100} title="Hardness: 100 is hard and texel exact, lower fades the tip out toward its edge" />
     <Slider compact bind:value={app.paintOpacity[tool]} label="opacity" min={0.01} max={1} step={0.01} scale={100} title="Opacity (1–9, 0)" />
     {@render islandClip()}
   {:else if app.canvasTool === 'fill' && app.fillMode === 'gradient'}

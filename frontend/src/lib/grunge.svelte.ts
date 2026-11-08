@@ -2,15 +2,22 @@ import { GrungeMaps } from '../../wailsjs/go/main/App'
 
 // A layer's grunge mask: where its pixels show. Map is one of texxer's grunge maps
 // or a generated one; scale is repeats across the texture (noise: block size in
-// texels), level shifts how much shows, contrast hardens the edges.
-export type Mask = { map: string; scale: number; level: number; contrast: number; seed: number; invert: boolean }
+// texels), level shifts how much shows, contrast hardens the edges. Stretch pulls
+// the map down (above 1) or across (below -1), for streaks and runs.
+export type Mask = { map: string; scale: number; stretch: number; level: number; contrast: number; seed: number; invert: boolean }
 
 export const generated = ['noise', 'clouds']
 
 // A scale that suits the map: the maps are made to be seen once across.
 export const scaleFor = (map: string) => (map === 'clouds' ? 4 : map === 'noise' ? 2 : 1)
 
-export const newMask = (map = 'clouds'): Mask => ({ map, scale: scaleFor(map), level: 0, contrast: 0.8, seed: 1, invert: false })
+export const newMask = (map = 'clouds'): Mask => ({ map, scale: scaleFor(map), stretch: 1, level: 0, contrast: 0.8, seed: 1, invert: false })
+
+// How much longer the map runs down and across.
+function stretched(m: Mask): [number, number] {
+  const s = m.stretch ?? 1
+  return s > 1 ? [1, s] : s < -1 ? [-s, 1] : [1, 1]
+}
 
 // Names of the built-in maps; loaded counts maps that arrived, so masks redraw.
 export const grunge = $state({ names: [] as string[], loaded: 0 })
@@ -52,14 +59,14 @@ function hash(x: number, y: number, seed: number) {
 }
 
 // Value noise on a grid of cells that wraps, so it tiles.
-function valueNoise(x: number, y: number, cells: number, seed: number) {
+function valueNoise2(x: number, y: number, cellsX: number, cellsY: number, seed: number) {
   const x0 = Math.floor(x)
   const y0 = Math.floor(y)
   const fx = x - x0
   const fy = y - y0
   const sx = fx * fx * (3 - 2 * fx)
   const sy = fy * fy * (3 - 2 * fy)
-  const at = (i: number, j: number) => hash(((i % cells) + cells) % cells, ((j % cells) + cells) % cells, seed)
+  const at = (i: number, j: number) => hash(((i % cellsX) + cellsX) % cellsX, ((j % cellsY) + cellsY) % cellsY, seed)
   const top = at(x0, y0) + (at(x0 + 1, y0) - at(x0, y0)) * sx
   const bottom = at(x0, y0 + 1) + (at(x0 + 1, y0 + 1) - at(x0, y0 + 1)) * sx
   return top + (bottom - top) * sy
@@ -69,17 +76,23 @@ function valueNoise(x: number, y: number, cells: number, seed: number) {
 function values(m: Mask, size: number): Float32Array | null {
   const out = new Float32Array(size * size)
   const scale = Math.max(1, Math.round(m.scale))
+  const [across, down] = stretched(m)
 
   if (m.map === 'noise') {
-    for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) out[y * size + x] = hash(Math.floor(x / scale), Math.floor(y / scale), m.seed)
+    const bx = scale * across
+    const by = scale * down
+    for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) out[y * size + x] = hash(Math.floor(x / bx), Math.floor(y / by), m.seed)
     return out
   }
   if (m.map === 'clouds') {
+    // Whole cells each way, so it still tiles.
+    const cx = Math.max(1, Math.round(scale / across))
+    const cy = Math.max(1, Math.round(scale / down))
     for (let y = 0; y < size; y++) {
       for (let x = 0; x < size; x++) {
         let v = 0
         let amp = 0.5
-        for (let o = 0, cells = scale; o < 4; o++, cells *= 2, amp /= 2) v += amp * valueNoise((x / size) * cells, (y / size) * cells, cells, m.seed + o)
+        for (let o = 0, f = 1; o < 4; o++, f *= 2, amp /= 2) v += amp * valueNoise2((x / size) * cx * f, (y / size) * cy * f, cx * f, cy * f, m.seed + o)
         out[y * size + x] = v / 0.9375
       }
     }
@@ -99,8 +112,8 @@ function values(m: Mask, size: number): Float32Array | null {
   }
   for (let y = 0; y < size; y++) {
     for (let x = 0; x < size; x++) {
-      let u = ((x + 0.5) / size) * scale * g.w
-      let v = ((y + 0.5) / size) * scale * g.w
+      let u = ((x + 0.5) / size) * (scale / across) * g.w
+      let v = ((y + 0.5) / size) * (scale / down) * g.w
       if (turn === 1) [u, v] = [v, -u]
       else if (turn === 2) [u, v] = [-u, -v]
       else if (turn === 3) [u, v] = [-v, u]

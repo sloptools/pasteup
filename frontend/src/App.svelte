@@ -8,7 +8,7 @@
   import { copy, cut, discard, paste, place } from './lib/clipboard'
   import { all, invert, selection } from './lib/selection'
   import { addPaths } from './lib/photos'
-  import { activeLayer, app, say, sizes, tiles } from './lib/state.svelte'
+  import { activeLayer, app, masking, say, sizes, tiles } from './lib/state.svelte'
   import { bridge } from './lib/bridge.svelte'
   import { redo, track, undo } from './lib/history.svelte'
   import { addAdjust, duplicate, move, newLayer, setSize } from './lib/layerOps'
@@ -194,6 +194,12 @@
     <div class="bar">
       <button class="icon" title="Show or hide the refs (Tab)" onclick={() => toggleRefs(false)}><Icon name="panel" size={11} /></button>
       <span class="caps">canvas</span>
+      {#if masking()}
+        <span class="masking mono" title="Color tools paint the active layer's mask: brush shows, eraser hides">
+          mask
+          <button class="icon" title="Back to the layer's pixels (Q, Esc)" onclick={() => (app.maskOf = null)}><Icon name="x" size={11} /></button>
+        </span>
+      {/if}
       <ToolOptions />
       {#if app.selection}
         <span class="selected mono">
@@ -311,6 +317,21 @@
     flex: none;
     font: 12px var(--mono);
     color: var(--dim);
+  }
+  .masking {
+    flex: none;
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    padding: 0 2px 0 6px;
+    height: 20px;
+    border: 1px solid var(--accent);
+    border-radius: 5px;
+    font: 11px var(--mono);
+    color: var(--accent);
+  }
+  .masking .icon {
+    color: var(--accent);
   }
   .selected {
     flex: none;

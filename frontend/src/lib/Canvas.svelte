@@ -5,9 +5,9 @@
   import { Composer, hits } from './compose'
   import { settle, box, cursors, fit as fitBox, handleAt, handles, hit, matrix, place, resize, type Box, type Handle } from './transform'
   import { edges, eachFace, islandAt, islandMask } from './uv'
-  import { activeLayer, app, cloneLayer, colorTools, say, wraps, type ColorTool, type PaintTool } from './state.svelte'
+  import { activeLayer, app, cloneLayer, colorTools, masking, say, wraps, type ColorTool, type PaintTool } from './state.svelte'
   import { bridge } from './bridge.svelte'
-  import { mergeDown, newLayer } from './layerOps'
+  import { addMask, mergeDown, newLayer } from './layerOps'
   import { footprint, Stroke } from './paint'
   import { ellipse, flood, rect } from './shapes'
   import { gradient, rgba } from './gradient'
@@ -42,7 +42,7 @@
   // Where a shape or gradient drag started.
   let dragFrom: [number, number] | null = null
   let dragRight = false
-  let stroke: { layer: string; paint: Stroke } | null = null
+  let stroke: { layer: string; paint: Stroke; mask: boolean } | null = null
   // Where the last stroke ended, for Shift-click lines.
   let last: [number, number] | null = null
 
@@ -270,22 +270,29 @@
     if (!activeLayer() && tool !== 'eraser') newLayer()
     const l = activeLayer()
     if (!l) return
-    if (!l.canvas) return say('adjustment layers take no paint')
-    if (settle(l)) say(`${l.name} redrawn at texel size for painting`)
+    // In mask mode the mask takes the paint: white shows the layer.
+    const onMask = masking()
+    if (onMask && !l.mask) addMask(l)
+    if (!onMask && !l.canvas) return say(l.color ? 'color layers take no paint, only their mask (Q)' : 'adjustment layers take no paint, only their mask (Q)')
+    if (!onMask && settle(l)) say(`${l.name} redrawn at texel size for painting`)
 
-    const paint = new Stroke(l.canvas, matrix(l).inverse(), app.size, {
-      color: app.colors[e.button === 2 ? 1 : 0],
+    const source = onMask ? l.mask! : l.canvas!
+    const paint = new Stroke(source, onMask ? new DOMMatrix() : matrix(l).inverse(), app.size, {
+      color: onMask ? '#ffffff' : app.colors[e.button === 2 ? 1 : 0],
       tipSize: brush ? app.tipSize[tool] : 1,
       tip: brush ? app.tip[tool] : 'square',
+      hardness: brush ? app.hardness[tool] : 1,
       erase: tool === 'eraser',
       opacity: app.paintOpacity[tool],
       clip: clipAt(wrapped(x), wrapped(y)),
       wrap: wraps(app.tile),
+      replace: onMask && tool === 'fill' && app.fillMode === 'gradient',
     })
     // Colors to fill by, read before the stroke stands in for the layer.
-    const sample = tool === 'fill' && app.fillMode === 'bucket' ? composer.canvas(app.fill.merged ? composer.target : composer.layer(l, app.layout)) : null
-    stroke = { layer: l.id, paint }
-    composer.stroke(l.id, paint.canvas)
+    const bucket = tool === 'fill' && app.fillMode === 'bucket'
+    const sample = !bucket ? null : onMask ? source : composer.canvas(app.fill.merged ? composer.target : composer.layer(l, app.layout))
+    stroke = { layer: l.id, paint, mask: onMask }
+    composer.stroke(l.id, paint.canvas, onMask)
     el.setPointerCapture(e.pointerId)
 
     if (sample) {
@@ -410,8 +417,10 @@
     const o = $state.snapshot(app.gradient)
     const [first, second] = dragRight ? [app.colors[1], app.colors[0]] : [app.colors[0], app.colors[1]]
     if (g && stroke) {
+      // On a mask: from showing to hidden, the other way with the right button.
+      const pair = stroke.mask ? (dragRight ? [rgba('#ffffff', 0), rgba('#ffffff')] : [rgba('#ffffff'), rgba('#ffffff', 0)]) : [rgba(first), o.clear ? rgba(first, 0) : rgba(second)]
       stroke.paint.reset()
-      if (g.length >= 1) stroke.paint.image(gradient(app.size, g.a, end(g), rgba(first), o.clear ? rgba(first, 0) : rgba(second), o.radial, o.dither))
+      if (g.length >= 1) stroke.paint.image(gradient(app.size, g.a, end(g), pair[0], pair[1], o.radial, o.dither))
       repaint()
     }
     ends.draw(g, zoom, guide)
@@ -434,7 +443,8 @@
     dragFrom = null
     if (!stroke) return
     const l = app.layers.find((l) => l.id === stroke!.layer)
-    if (l) l.canvas = stroke.paint.canvas
+    if (l && stroke.mask) l.mask = stroke.paint.canvas
+    else if (l) l.canvas = stroke.paint.canvas
     composer.stroke(stroke.layer, null)
     stroke = null
     checkpoint()

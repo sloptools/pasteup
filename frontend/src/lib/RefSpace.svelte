@@ -304,7 +304,10 @@
 
 <div class="refs" class:cut={app.refTool === 'cut'} bind:this={el}>
   {#if !app.photos.length}
-    <div class="empty">drop photos here</div>
+    <div class="empty">
+      <button class="text-button" onclick={() => openPhotos([0, 0])}>open photos…</button>
+      <span>or drop them here</span>
+    </div>
   {/if}
   {#if cut}
     <div class="hint mono">
@@ -345,10 +348,16 @@
   .empty {
     position: absolute;
     inset: 0;
-    display: grid;
-    place-items: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
     color: var(--dim);
     pointer-events: none;
+  }
+  .empty button {
+    pointer-events: auto;
   }
   .picker {
     display: none;

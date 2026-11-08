@@ -1,6 +1,7 @@
-import { activeLayer, app, blends, removeLayer, say, tiles, fillModes, selectModes, shapes, tips, colorTools, type CanvasTool, type ColorTool, type PaintTool } from './state.svelte'
+import { activeLayer, app, blends, masking, removeLayer, say, tiles, fillModes, selectModes, shapes, tips, colorTools, type CanvasTool, type ColorTool, type PaintTool } from './state.svelte'
 import { clear, lift, place } from './clipboard'
 import { flip, scaleBy, turn } from './transform'
+import { toggleMaskMode } from './layerOps'
 
 // Picks a tool; the transform tool first lifts a selection into a floating layer.
 export function useTool(tool: CanvasTool) {
@@ -60,9 +61,16 @@ export function canvasKey(e: KeyboardEvent): boolean {
     case 'x':
       app.colors.reverse()
       return true
+    case 'q':
+      toggleMaskMode()
+      return true
     case 'Escape':
       if (app.picking) {
         app.picking = false
+        return true
+      }
+      if (masking()) {
+        app.maskOf = null
         return true
       }
       if (app.canvasTool === 'move') return false

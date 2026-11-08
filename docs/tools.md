@@ -19,6 +19,7 @@ The tools run down the strip right of the canvas; their settings (tip, size, opa
 | U, ⇧U | shape, next kind (rect, rect filled, ellipse, ellipse filled) |
 | ⇧ drag, ⌥ drag | shape: square or circle, from the center |
 | [, ] | brush or eraser size, shape outline width, in texels |
+| hard | brush, eraser: 100 is hard and texel exact, lower fades the tip toward its edge; a stroke keeps each texel's strongest dab |
 | ⇧I | island clip: brush, eraser, fill and shapes keep to the UV island they start in |
 | 1–9, 0 | opacity of brush, eraser, fill or shape: 10–90 %, 100 %; a stroke never builds up past it |
 | ⇧ click | brush or eraser: straight line from where the last stroke ended |

@@ -1,6 +1,7 @@
 import { CanvasSource, Container, Graphics, RenderTexture, Sprite, Texture, type Renderer } from 'pixi.js'
 import { AdjustPass } from './adjust'
 import { BlendPass } from './blend'
+import { BlurPass } from './blur'
 import { eraser, grunge } from './grunge.svelte'
 import { eachFace } from './uv'
 import { exact, matrix, place, raster } from './transform'
@@ -13,12 +14,13 @@ export class Composer {
   target: RenderTexture
   private pass: BlendPass
   private adjustPass: AdjustPass
+  private blurPass: BlurPass
   // Ping-pong pair for laying the layers together.
   private acc: [RenderTexture, RenderTexture]
   // Pieces land one pixel per texel (see raster), so their textures are always crisp.
   private pieces = new Map<HTMLCanvasElement, Texture>()
   // The canvas of a stroke in progress, shown in place of its layer's piece.
-  private live: { id: string; canvas: HTMLCanvasElement; rev: number } | null = null
+  private live: { id: string; canvas: HTMLCanvasElement; rev: number; mask: boolean } | null = null
   private layers = new Map<string, { rt: RenderTexture; sig: string }>()
   private masks = new Map<string, RenderTexture>()
   // Tile mode: layers past an edge come back in on the other side.
@@ -33,6 +35,7 @@ export class Composer {
     this.acc = [this.texture(size), this.texture(size)]
     this.pass = new BlendPass(renderer)
     this.adjustPass = new AdjustPass(renderer)
+    this.blurPass = new BlurPass(renderer)
   }
 
   private texture(size: number) {
@@ -97,8 +100,9 @@ export class Composer {
     return rt
   }
 
-  stroke(id: string, canvas: HTMLCanvasElement | null) {
-    this.live = canvas && { id, canvas, rev: 0 }
+  // A stroke on a layer's pixels, or on its mask.
+  stroke(id: string, canvas: HTMLCanvasElement | null, mask = false) {
+    this.live = canvas && { id, canvas, rev: 0, mask }
   }
 
   // The stroke's canvas changed.
@@ -108,21 +112,27 @@ export class Composer {
     this.pieces.get(this.live.canvas)?.source.update()
   }
 
+  private liveMask(l: Layer) {
+    return this.live?.id === l.id && this.live.mask ? this.live : null
+  }
+
   // The layer alone, as it lands in the texture.
   layer(l: Layer, layout: Layout | null): RenderTexture {
     const live = this.live?.id === l.id ? this.live : null
-    const canvas = live?.canvas ?? l.canvas!
+    const canvas = live && !live.mask ? live.canvas : l.canvas
     const size = this.target.width
-    const sig = [idOf(canvas), live?.rev, l.x, l.y, l.scaleX, l.scaleY, l.turns, l.flipX, l.flipY, l.island, size, layout && idOf(layout), this.wrap.x, this.wrap.y, JSON.stringify(l.mask), grunge.loaded].join()
+    const mask = this.liveMask(l)?.canvas ?? l.mask
+    const sig = [canvas && idOf(canvas), l.color, mask && idOf(mask), live?.rev, l.x, l.y, l.scaleX, l.scaleY, l.turns, l.flipX, l.flipY, l.island, size, layout && idOf(layout), this.wrap.x, this.wrap.y, JSON.stringify(l.grunge), JSON.stringify(l.blur), grunge.loaded].join()
     const entry = this.entry(l.id)
     if (entry.sig === sig) return entry.rt
 
     const scene = new Container()
     const pixels = new Container()
-    const shown = this.shown(l, canvas)
-    for (const dx of this.wrap.x ? [-size, 0, size] : [0]) {
+    if (l.color) pixels.addChild(new Graphics().rect(0, 0, size, size).fill(l.color))
+    const shown = canvas && this.shown(l, canvas)
+    for (const dx of shown ? (this.wrap.x ? [-size, 0, size] : [0]) : []) {
       for (const dy of this.wrap.y ? [-size, 0, size] : [0]) {
-        const sprite = new Sprite(this.piece(shown))
+        const sprite = new Sprite(this.piece(shown!))
         if (shown === canvas) place(sprite, l)
         else sprite.position.set(raster(l).x, raster(l).y)
         sprite.position.x += dx
@@ -142,6 +152,8 @@ export class Composer {
     }
     this.renderer.render({ container: scene, target: entry.rt, clear: true, clearColor: [0, 0, 0, 0] })
     scene.destroy({ children: true })
+    // Blur before the masks, so they still cut sharp.
+    if (l.blur) this.blurPass.draw(entry.rt, l.blur.x, l.blur.y, this.wrap)
     this.applyMask(l, entry.rt)
     entry.sig = sig
     return entry.rt
@@ -181,17 +193,22 @@ export class Composer {
     return entry.rt
   }
 
-  // Cuts the layer's texture to its grunge mask.
+  // Cuts the layer's texture to its grunge mask and its painted mask.
   private applyMask(l: Layer, rt: RenderTexture) {
-    const erase = l.mask && eraser(l.mask, rt.width)
-    if (!erase) return
-    // Pixi ignores the blend mode of the container it renders, so the sprite goes in one.
-    const scene = new Container()
-    const sprite = new Sprite(this.piece(erase))
-    sprite.blendMode = 'erase'
-    scene.addChild(sprite)
-    this.renderer.render({ container: scene, target: rt, clear: false })
-    scene.destroy({ children: true })
+    const live = this.liveMask(l)
+    const painted = live?.canvas ?? l.mask
+    const paintedErase = painted && hidden(painted, !!live)
+    if (paintedErase && live) this.piece(paintedErase).source.update()
+    for (const erase of [l.grunge && eraser(l.grunge, rt.width), paintedErase]) {
+      if (!erase) continue
+      // Pixi ignores the blend mode of the container it renders, so the sprite goes in one.
+      const scene = new Container()
+      const sprite = new Sprite(this.piece(erase))
+      sprite.blendMode = 'erase'
+      scene.addChild(sprite)
+      this.renderer.render({ container: scene, target: rt, clear: false })
+      scene.destroy({ children: true })
+    }
   }
 
   // Drops the textures of layers that are gone, and of pieces only undo still holds.
@@ -205,8 +222,9 @@ export class Composer {
 
     const used = new Set(layers.filter((l) => l.canvas).map((l) => this.shown(l, l.canvas!)))
     for (const l of layers) {
-      const erase = l.mask && eraser(l.mask, this.target.width)
+      const erase = l.grunge && eraser(l.grunge, this.target.width)
       if (erase) used.add(erase)
+      if (l.mask) used.add(hidden(l.mask, false))
     }
     if (this.live) used.add(this.live.canvas)
     for (const [canvas, tex] of this.pieces) {
@@ -254,6 +272,27 @@ export class Composer {
     canvas.getContext('2d')!.putImageData(new ImageData(Uint8ClampedArray.from(pixels), width, height), 0, 0)
     return canvas
   }
+}
+
+// A painted mask turned around for the erase blend: opaque where the layer hides.
+// Masks being painted change in place, so theirs is redrawn each time.
+const hiddens = new WeakMap<HTMLCanvasElement, HTMLCanvasElement>()
+function hidden(mask: HTMLCanvasElement, live: boolean) {
+  let out = hiddens.get(mask)
+  if (out && !live) return out
+  if (!out) {
+    out = document.createElement('canvas')
+    out.width = mask.width
+    out.height = mask.height
+    hiddens.set(mask, out)
+  }
+  const ctx = out.getContext('2d')!
+  ctx.globalCompositeOperation = 'copy'
+  ctx.fillStyle = '#fff'
+  ctx.fillRect(0, 0, out.width, out.height)
+  ctx.globalCompositeOperation = 'destination-out'
+  ctx.drawImage(mask, 0, 0)
+  return out
 }
 
 // Pieces and layouts are replaced, never changed, so identity tells them apart.

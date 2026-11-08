@@ -19,9 +19,11 @@ export type Photo = {
 export type Layer = {
   id: string
   name: string
-  // The deskewed piece at photo resolution; null for adjustment layers.
+  // The deskewed piece at photo resolution; null for adjustment and color layers.
   canvas: HTMLCanvasElement | null
   adjust: Adjust | null
+  // A color layer: the whole texture in one color, to mask down to dirt and the like.
+  color: string | null
   // Center in texels, texels per piece pixel across and down, quarter turns clockwise.
   x: number
   y: number
@@ -33,7 +35,11 @@ export type Layer = {
   // UV island the layer is clipped to.
   island: number | null
   // Grunge mask: the layer shows only where it does.
-  mask: Mask | null
+  grunge: Mask | null
+  // Painted mask at texture size: the layer shows where it is opaque.
+  mask: HTMLCanvasElement | null
+  // Gaussian blur, standard deviation in texels across and down; linked moves both.
+  blur: { x: number; y: number; linked: boolean } | null
   visible: boolean
   opacity: number
   blend: Blend
@@ -99,6 +105,8 @@ export const app = $state({
   tip: { brush: 'round', eraser: 'square' } as Record<PaintTool, Tip>,
   // Brush and eraser size in texels.
   tipSize: { brush: 1, eraser: 4 } as Record<PaintTool, number>,
+  // 1 is hard and texel exact; lower fades the tip out toward its edge.
+  hardness: { brush: 1, eraser: 1 } as Record<PaintTool, number>,
   paintOpacity: { brush: 1, eraser: 1, fill: 1, shape: 1 } as Record<ColorTool, number>,
   // Fill: how far colors may differ, only touching texels, sampling all visible layers.
   fill: { tolerance: 0, contiguous: true, merged: false },
@@ -123,6 +131,8 @@ export const app = $state({
   selection: null as Selection | null,
   // Pixels waiting to be placed into a layer; restore is the layer before a lift.
   floating: null as { id: string; into: string; restore: Layer | null } | null,
+  // The layer whose mask the color tools paint while it is active, instead of its pixels.
+  maskOf: null as string | null,
   // The next canvas click picks a color.
   picking: false,
   status: '',
@@ -147,10 +157,10 @@ export function removeLayer(id: string) {
 }
 
 // A new layer above the others, made active.
-type NewLayer = Omit<Layer, 'id' | 'visible' | 'opacity' | 'blend' | 'clip' | 'adjust' | 'mask'> & Partial<Layer>
+type NewLayer = Omit<Layer, 'id' | 'visible' | 'opacity' | 'blend' | 'clip' | 'adjust' | 'color' | 'grunge' | 'mask' | 'blur'> & Partial<Layer>
 
 export function addLayer(l: NewLayer, at = app.layers.length) {
-  const layer: Layer = { visible: true, opacity: 1, blend: 'normal', clip: false, adjust: null, mask: null, ...l, id: newId() }
+  const layer: Layer = { visible: true, opacity: 1, blend: 'normal', clip: false, adjust: null, color: null, grunge: null, mask: null, blur: null, ...l, id: newId() }
   app.layers.splice(at, 0, layer)
   app.active = layer.id
 }
@@ -160,5 +170,10 @@ export function clipBase(index: number): Layer | undefined {
   for (let i = index - 1; i >= 0; i--) if (!app.layers[i].clip) return app.layers[i]
 }
 
-// Adjustment and mask are the nested parts of a layer.
-export const cloneLayer = (l: Layer): Layer => ({ ...l, adjust: l.adjust && { ...l.adjust }, mask: l.mask && { ...l.mask } })
+// Adjustment, grunge and blur are the nested parts of a layer.
+export const cloneLayer = (l: Layer): Layer => ({ ...l, adjust: l.adjust && { ...l.adjust }, grunge: l.grunge && { ...l.grunge }, blur: l.blur && { ...l.blur } })
+
+// Layers whose pixels the color tools can change: pieces, or any layer's mask in mask mode.
+export const paintable = (l: Layer) => masking() || !!l.canvas
+
+export const masking = () => app.maskOf !== null && app.maskOf === app.active

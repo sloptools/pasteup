@@ -1,6 +1,6 @@
 import type { Composer } from './compose'
 import { newMask } from './grunge.svelte'
-import { activeLayer, addLayer, app, cloneLayer, neutral, newId, removeLayer } from './state.svelte'
+import { activeLayer, addLayer, app, cloneLayer, masking, neutral, newId, removeLayer, type Layer } from './state.svelte'
 
 export function duplicate() {
   const l = activeLayer()
@@ -40,6 +40,11 @@ export function mergeDown(composer: Composer) {
       ...identity(),
       island: null,
       adjust: null,
+      // Baked in by the flatten.
+      color: null,
+      grunge: null,
+      mask: null,
+      blur: null,
     },
     at - 1,
   )
@@ -54,8 +59,18 @@ export function setSize(size: number) {
     l.y *= f
     l.scaleX *= f
     l.scaleY *= f
+    if (l.mask) l.mask = resample(l.mask, size)
   }
   app.size = size
+}
+
+function resample(source: HTMLCanvasElement, size: number) {
+  const canvas = document.createElement('canvas')
+  canvas.width = canvas.height = size
+  const ctx = canvas.getContext('2d')!
+  ctx.imageSmoothingQuality = 'high'
+  ctx.drawImage(source, 0, 0, size, size)
+  return canvas
 }
 
 // Untransformed placement at texture size: one canvas pixel per texel.
@@ -75,15 +90,42 @@ export function newLayer() {
   addLayer({ name: 'paint', canvas: blank(), island: null, ...identity() }, at)
 }
 
-// A layer of the primary color with a grunge mask, for dirt, rust and grime.
+// A color layer in the primary color with a grunge mask, for dirt, rust and grime.
 export function newGrunge() {
   const l = activeLayer()
   const at = l ? app.layers.indexOf(l) + 1 : app.layers.length
+  addLayer({ name: 'grunge', canvas: null, color: app.colors[0], island: null, grunge: newMask(), ...identity() }, at)
+}
+
+// Mask mode on or off for the active layer; turning it on gives the layer a mask if it has none.
+export function toggleMaskMode() {
+  const l = activeLayer()
+  if (!l) return
+  if (masking()) return void (app.maskOf = null)
+  if (!l.mask) addMask(l)
+  app.maskOf = l.id
+}
+
+// Swaps where the mask shows and hides.
+export function invertMask(l: Layer) {
+  if (!l.mask) return
+  const canvas = document.createElement('canvas')
+  canvas.width = canvas.height = l.mask.width
+  const ctx = canvas.getContext('2d')!
+  ctx.fillStyle = '#fff'
+  ctx.fillRect(0, 0, canvas.width, canvas.height)
+  ctx.globalCompositeOperation = 'destination-out'
+  ctx.drawImage(l.mask, 0, 0)
+  l.mask = canvas
+}
+
+// A mask showing all of the layer, to paint holes into.
+export function addMask(l: Layer) {
   const canvas = blank()
   const ctx = canvas.getContext('2d')!
-  ctx.fillStyle = app.colors[0]
+  ctx.fillStyle = '#fff'
   ctx.fillRect(0, 0, canvas.width, canvas.height)
-  addLayer({ name: 'grunge', canvas, island: null, mask: newMask(), ...identity() }, at)
+  l.mask = canvas
 }
 
 // An adjustment layer above the active one.
