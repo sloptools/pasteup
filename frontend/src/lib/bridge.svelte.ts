@@ -8,12 +8,12 @@ function hash(s: string): string {
   return (h >>> 0).toString(16)
 }
 
-// Blender sends a .blend's objects with their UVs; pasteup sends the texture back
-// as a PNG beside the .blend, once it rests.
+// Blender sends a .blend's objects with their UVs; pasteup sends the channels back
+// as PNGs beside the .blend, once they rest.
 class Bridge {
   // The .blend files whose add-on is listening.
   connected = $state<string[]>([])
-  private snapshot: () => string = () => ''
+  private snapshot: () => Record<string, string> = () => ({})
   private timer = 0
   private sent = ''
 
@@ -21,7 +21,7 @@ class Bridge {
     return !!app.blend && this.connected.includes(app.blend)
   }
 
-  start(snapshot: () => string) {
+  start(snapshot: () => Record<string, string>) {
     this.snapshot = snapshot
     EventsOn('bridge:sync', (s: { blend: string; layout: Layout }) => {
       app.layout = s.layout
@@ -52,12 +52,12 @@ class Bridge {
   private async send() {
     const blend = app.blend
     if (!blend) return
-    const png = this.snapshot()
-    const sig = hash(png)
+    const pngs = this.snapshot()
+    const sig = hash(Object.entries(pngs).flat().join())
     if (sig === this.sent) return
     this.sent = sig
     try {
-      await BridgeTexture(blend, png)
+      await BridgeTexture(blend, pngs)
     } catch (err) {
       say(String(err))
     }

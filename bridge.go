@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net"
 	"net/http"
 	"os"
@@ -28,13 +29,16 @@ type bridge struct {
 	blends map[string]*blendState
 }
 
-// blendState is what pasteup has for one .blend: its texture file with a count
-// that goes up with each new one, and a count of syncs pasteup asked for.
+// blendState is what pasteup has for one .blend: its texture files with a count
+// that goes up with each new set, and a count of syncs pasteup asked for. A
+// channel the project doesn't have is empty.
 type blendState struct {
-	Texture int    `json:"texture"`
-	Color   string `json:"color"`
-	Sync    int    `json:"sync"`
-	seen    time.Time
+	Texture   int    `json:"texture"`
+	Color     string `json:"color"`
+	Emission  string `json:"emission"`
+	Roughness string `json:"roughness"`
+	Sync      int    `json:"sync"`
+	seen      time.Time
 }
 
 // BridgeSync is what the add-on sends after writing a .blend's objects into a GLB,
@@ -160,22 +164,25 @@ func (a *App) BridgeConnected() []string {
 	return out
 }
 
-// BridgeTexture writes the live texture beside the .blend, as <name>.png, and
-// tells the add-on.
-func (a *App) BridgeTexture(blend, pngBase64 string) error {
+// BridgeTexture writes the live channels beside the .blend, color as <name>.png,
+// the others as <name>_<channel>.png, and tells the add-on.
+func (a *App) BridgeTexture(blend string, pngs map[string]string) error {
 	if a.bridge == nil {
 		return errors.New("no bridge")
 	}
 	if !filepath.IsAbs(blend) {
 		return errors.New("bad blend")
 	}
-	data, err := base64.StdEncoding.DecodeString(pngBase64)
-	if err != nil {
-		return err
-	}
-	path := strings.TrimSuffix(blend, filepath.Ext(blend)) + ".png"
-	if err := os.WriteFile(path, data, 0o644); err != nil {
-		return err
+	paths := map[string]string{}
+	for channel, b64 := range pngs {
+		path, err := channelPath(strings.TrimSuffix(blend, filepath.Ext(blend))+".png", channel)
+		if err != nil {
+			return err
+		}
+		if err := writePNG(path, b64); err != nil {
+			return err
+		}
+		paths[channel] = path
 	}
 
 	b := a.bridge
@@ -183,8 +190,31 @@ func (a *App) BridgeTexture(blend, pngBase64 string) error {
 	defer b.mu.Unlock()
 	s := b.state(blend)
 	s.Texture++
-	s.Color = path
+	s.Color = paths["color"]
+	s.Emission = paths["emission"]
+	s.Roughness = paths["roughness"]
 	return nil
+}
+
+var channelNames = map[string]bool{"color": true, "emission": true, "ao": true, "roughness": true}
+
+// channelPath is where a channel goes beside the color file: name.png, name_emission.png.
+func channelPath(color, channel string) (string, error) {
+	if !channelNames[channel] {
+		return "", fmt.Errorf("no channel %q", channel)
+	}
+	if channel == "color" {
+		return color, nil
+	}
+	return strings.TrimSuffix(color, ".png") + "_" + channel + ".png", nil
+}
+
+func writePNG(path, b64 string) error {
+	data, err := base64.StdEncoding.DecodeString(b64)
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(path, data, 0o644)
 }
 
 // BridgeRequestSync asks the add-on of a .blend to send its objects again.

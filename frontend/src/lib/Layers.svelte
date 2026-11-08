@@ -2,10 +2,11 @@
   import Icon from './Icon.svelte'
   import Slider from './Slider.svelte'
   import ContextMenu, { type Item } from './ContextMenu.svelte'
-  import { activeLayer, app, blends, masking, neutral, removeLayer, type Adjust, type Layer } from './state.svelte'
+  import { activeLayer, app, blends, channels, masking, neutral, removeLayer, type Channel, type Adjust, type Layer } from './state.svelte'
   import { addAdjust, duplicate, invertMask, newGrunge, newLayer, toggleMaskMode } from './layerOps'
   import { generated, grunge, newMask, scaleFor } from './grunge.svelte'
   import { thumbs } from './thumbs.svelte'
+  import { copyTo, present, remove as removeChannel, short, show } from './channels'
 
   let { onmerge }: { onmerge: () => void } = $props()
   const active = $derived(activeLayer())
@@ -45,6 +46,7 @@
         ...(l.mask ? [{ label: 'remove mask', action: () => removeMask(l) }] : []),
         ...(l.grunge ? [{ label: 'remove grunge', action: () => (l.grunge = null) }] : []),
         ...(l.blur ? [{ label: 'remove blur', action: () => (l.blur = null) }] : []),
+        ...channels.filter((ch) => ch !== app.channel).map((ch) => ({ label: `copy to ${ch}`, action: () => copyTo(l, ch) })),
         { label: 'delete', action: () => removeLayer(l.id), danger: true },
       )
     }
@@ -107,6 +109,20 @@
     armed = null
   }
 
+  function addMenu(e: MouseEvent) {
+    const items: Item[] = channels.filter((ch) => !present().includes(ch)).map((ch) => ({ label: ch, action: () => show(ch) }))
+    const r = (e.currentTarget as HTMLElement).getBoundingClientRect()
+    menu = { x: r.left, y: r.bottom + 4, items }
+  }
+
+  function channelMenu(e: MouseEvent, ch: Channel) {
+    e.preventDefault()
+    e.stopPropagation()
+    const items: Item[] = [{ label: 'show faintly over others', action: () => (app.onion.channel = ch), disabled: ch === app.channel }]
+    if (ch !== 'color') items.push({ label: `remove ${ch}`, action: () => removeChannel(ch), danger: true })
+    menu = { x: e.clientX, y: e.clientY, items }
+  }
+
   function setGrunge(l: Layer, map: string) {
     if (l.grunge) Object.assign(l.grunge, { map, scale: scaleFor(map) })
     else l.grunge = newMask(map)
@@ -143,7 +159,33 @@
 </script>
 
 <div class="layers" role="presentation" oncontextmenu={openMenu} onpointerdown={() => (app.focus = 'layers')}>
-  <div class="head caps" class:focus={app.focus === 'layers'}>layers</div>
+  <div class="head" class:focus={app.focus === 'layers'}>
+    {#each present() as ch, i}
+      <button class="tab caps" class:on={app.channel === ch} title="{ch} (⌘{i + 1}); right-click for more" onclick={() => show(ch)} oncontextmenu={(e) => channelMenu(e, ch)}>{short[ch]}</button>
+    {/each}
+    {#if present().length < channels.length}
+      <button class="tab add caps" title="Another texture channel" onclick={(e) => addMenu(e)}>+</button>
+    {/if}
+  </div>
+  {#if present().length > 1}
+    <div class="channel-row">
+      <span class="kind mono">onion</span>
+      <select class="mono" title="Another channel faintly over the canvas, for reference" value={app.onion.channel ?? ''} onchange={(e) => (app.onion.channel = (e.currentTarget.value || null) as Channel | null)}>
+        <option value="">none</option>
+        {#each present().filter((ch) => ch !== app.channel) as ch}<option value={ch}>{ch}</option>{/each}
+      </select>
+      {#if app.onion.channel}
+        <div class="onion-opacity"><Slider bind:value={app.onion.opacity} min={0.05} max={1} step={0.05} scale={100} title="Onion opacity" /></div>
+      {/if}
+    </div>
+    {#if present().includes('ao')}
+      <div class="channel-row">
+        <button class="check" class:on={app.bakeAO} title="Export and Blender get the color with the AO multiplied in; off writes the AO as its own file" onclick={() => (app.bakeAO = !app.bakeAO)}>
+          <span class="box"></span>ao into color
+        </button>
+      </div>
+    {/if}
+  {/if}
   <div class="list" bind:this={list}>
     {#each app.layers.toReversed() as l (l.id)}
       <div
@@ -315,11 +357,11 @@
     padding: 0 8px;
   }
   .head {
-    height: 26px;
+    height: 30px;
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    padding: 0 6px;
+    gap: 2px;
+    padding: 0 2px;
   }
   .opacity {
     flex: 1;
@@ -454,6 +496,30 @@
     margin-right: -2px;
     font: 11px var(--mono);
     color: var(--dim);
+  }
+  .tab {
+    height: 22px;
+    padding: 0 6px;
+    border: 0;
+    border-radius: 5px;
+    background: none;
+  }
+  .tab:hover {
+    color: var(--fg);
+  }
+  .tab.on {
+    background: var(--active);
+    color: var(--strong);
+  }
+  .channel-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0 6px 6px;
+  }
+  .onion-opacity {
+    flex: 1;
+    --value-width: 30px;
   }
   .head.focus {
     color: var(--fg);

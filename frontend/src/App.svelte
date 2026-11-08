@@ -8,7 +8,8 @@
   import { copy, cut, discard, paste, place } from './lib/clipboard'
   import { all, invert, selection } from './lib/selection'
   import { addPaths } from './lib/photos'
-  import { activeLayer, app, masking, say, sizes, tiles } from './lib/state.svelte'
+  import { activeLayer, app, channels, masking, say, sizes, tiles } from './lib/state.svelte'
+  import { present, show } from './lib/channels'
   import { bridge } from './lib/bridge.svelte'
   import { redo, track, undo } from './lib/history.svelte'
   import { addAdjust, duplicate, move, newLayer, setSize } from './lib/layerOps'
@@ -39,18 +40,20 @@
   }
 
   async function exportPNG() {
-    const png = canvas.png()
+    const pngs = canvas.pngs()
     const name = app.layout?.name ?? 'texture'
     if (!wails) {
-      const a = document.createElement('a')
-      a.href = `data:image/png;base64,${png}`
-      a.download = `${name}.png`
-      a.click()
+      for (const [channel, png] of Object.entries(pngs)) {
+        const a = document.createElement('a')
+        a.href = `data:image/png;base64,${png}`
+        a.download = channel === 'color' ? `${name}.png` : `${name}_${channel}.png`
+        a.click()
+      }
       return
     }
     const dir = app.layout?.path.replace(/\/[^/]*$/, '') ?? ''
     try {
-      const path = await ExportPNG(dir, name, png)
+      const path = await ExportPNG(dir, name, pngs)
       if (path) say(`exported ${path}`)
     } catch (err) {
       say(String(err))
@@ -136,6 +139,9 @@
     else if (k === 'g' && e.altKey) {
       const l = activeLayer()
       if (l) l.clip = !l.clip
+    } else if (/^Digit[1-4]$/.test(e.code)) {
+      const ch = channels[Number(e.code.slice(5)) - 1]
+      if (present().includes(ch) || e.shiftKey) show(ch)
     } else if (e.code === 'Digit0') {
       if (app.focus === 'refs' && app.refs !== 'closed') refs.fit()
       else canvas.fit()
@@ -153,7 +159,7 @@
     loadNames()
     markClean()
     if (!wails) return
-    bridge.start(() => canvas.png())
+    bridge.start(() => canvas.pngs() as Record<string, string>)
     OnFileDrop((x, y, paths) => {
       const projectFile = paths.find((p) => p.toLowerCase().endsWith('.pasteup'))
       if (projectFile) return open(projectFile)

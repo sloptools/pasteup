@@ -1,11 +1,12 @@
 <script lang="ts">
   import { onMount, untrack } from 'svelte'
-  import { Container, Graphics, Sprite } from 'pixi.js'
+  import { Container, Graphics, RenderTexture, Sprite } from 'pixi.js'
+  import { composed, gray, grayOf, present } from './channels'
   import { View } from './view'
   import { Composer, hits } from './compose'
   import { settle, box, cursors, fit as fitBox, handleAt, handles, hit, matrix, place, resize, type Box, type Handle } from './transform'
   import { edges, eachFace, islandAt, islandMask } from './uv'
-  import { activeLayer, app, cloneLayer, colorTools, masking, say, wraps, type ColorTool, type PaintTool } from './state.svelte'
+  import { activeLayer, app, colorTools, masking, say, wraps, type Channel, type ColorTool, type PaintTool } from './state.svelte'
   import { bridge } from './bridge.svelte'
   import { addMask, mergeDown, newLayer } from './layerOps'
   import { footprint, Stroke } from './paint'
@@ -27,6 +28,8 @@
 
   const checker = new Graphics()
   let texture: Sprite
+  const onionSprite = new Sprite()
+  let onionTarget: RenderTexture | null = null
   // The texture again around itself, in tile mode.
   const neighbors = new Container()
   const uvLines = new Graphics()
@@ -52,7 +55,7 @@
     view.init().then(() => {
       composer = new Composer(view.pixi.renderer, app.size)
       texture = new Sprite(composer.target)
-      view.world.addChild(checker, neighbors, texture, uvLines, islandMark, frame, marquee.node, grips, ends.node, tip)
+      view.world.addChild(checker, neighbors, texture, onionSprite, uvLines, islandMark, frame, marquee.node, grips, ends.node, tip)
       gradientControl.apply = applyGradient
       gradientControl.cancel = cancelGradient
       view.onZoom = () => (zoom = view.zoom)
@@ -65,7 +68,7 @@
         view.draw()
       }, 300)
       stopAnts = () => clearInterval(ants)
-      if (import.meta.env.DEV) Object.assign(window, { composer, canvasView: view })
+      if (import.meta.env.DEV) Object.assign(window, { composer, canvasView: view, pngs })
       ready = true
       fit()
     })
@@ -79,8 +82,24 @@
     view?.fit(0, 0, app.size, app.size)
   }
 
-  export function png(): string {
-    return composer.png()
+  // Every channel as a PNG, color with the AO multiplied in unless it is kept apart.
+  export function pngs(): Partial<Record<Channel, string>> {
+    const out: Partial<Record<Channel, string>> = {}
+    const flat = (ch: Channel) => composer.flatten(composed(ch), app.layout)
+    const ao = present().includes('ao') ? flat('ao') : null
+    for (const ch of present()) {
+      if (ch === 'ao' && app.bakeAO) continue
+      const layers = composed(ch)
+      if (ch === 'color' && ao && app.bakeAO) layers.push({ name: 'ao', ...aoLayer(ao) })
+      const canvas = ch === 'ao' && ao ? ao : composer.flatten(layers, app.layout)
+      out[ch] = canvas.toDataURL('image/png').split(',')[1]
+    }
+    return out
+  }
+
+  // The AO channel as a layer multiplied over the color.
+  function aoLayer(ao: HTMLCanvasElement) {
+    return { id: 'bake:ao', canvas: ao, color: null, adjust: null, grunge: null, mask: null, blur: null, blend: 'multiply' as const, opacity: 1, visible: true, clip: false, island: null, x: app.size / 2, y: app.size / 2, scaleX: 1, scaleY: 1, turns: 0, flipX: false, flipY: false }
   }
 
   export function merge() {
@@ -188,7 +207,19 @@
   function compose() {
     current()
     composer.wrap = wraps(app.tile)
-    composer.render(app.layers.map(cloneLayer), app.layout)
+    composer.render(composed(app.channel), app.layout)
+    // The onion: another channel faintly on top, as a reference.
+    const onion = app.onion.channel
+    onionSprite.visible = !!onion && onion !== app.channel
+    if (onionSprite.visible) {
+      if (onionTarget?.width !== app.size) {
+        onionTarget?.destroy(true)
+        onionTarget = RenderTexture.create({ width: app.size, height: app.size, scaleMode: 'nearest' })
+        onionSprite.texture = onionTarget
+      }
+      composer.render(composed(onion!), app.layout, onionTarget)
+      onionSprite.alpha = app.onion.opacity
+    }
     refreshThumbs(composer)
     bridge.changed()
     view.draw()
@@ -283,7 +314,7 @@
 
     const source = onMask ? l.mask! : l.canvas!
     const paint = new Stroke(source, onMask ? new DOMMatrix() : matrix(l).inverse(), app.size, {
-      color: onMask ? '#ffffff' : app.colors[e.button === 2 ? 1 : 0],
+      color: onMask ? '#ffffff' : paintColor(app.colors[e.button === 2 ? 1 : 0]),
       tipSize: brush ? app.tipSize[tool] : 1,
       tip: brush ? app.tip[tool] : 'square',
       hardness: brush ? app.hardness[tool] : 1,
@@ -322,6 +353,9 @@
     last = [x, y]
     repaint()
   }
+
+  // Gray channels take the brightness of the color.
+  const paintColor = (c: string) => (gray(app.channel) ? grayOf(c) : c)
 
   // Where paint may land: inside the selection and, with island clip, the island at x, y.
   function clipAt(x: number, y: number): HTMLCanvasElement | null {
@@ -420,7 +454,7 @@
     if (!ready) return
     const g = app.gradientAim ? ($state.snapshot(app.gradientAim) as Aim) : null
     const o = $state.snapshot(app.gradient)
-    const [first, second] = dragRight ? [app.colors[1], app.colors[0]] : [app.colors[0], app.colors[1]]
+    const [first, second] = (dragRight ? [app.colors[1], app.colors[0]] : [app.colors[0], app.colors[1]]).map(paintColor)
     if (g && stroke) {
       // On a mask: from showing to hidden, the other way with the right button.
       const pair = stroke.mask ? (dragRight ? [rgba('#ffffff', 0), rgba('#ffffff')] : [rgba('#ffffff'), rgba('#ffffff', 0)]) : [rgba(first), o.clear ? rgba(first, 0) : rgba(second)]

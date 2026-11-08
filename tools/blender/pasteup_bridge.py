@@ -96,8 +96,32 @@ def socket(node, *names):
             return node.inputs[n]
 
 
-def update_material(path):
-    """The pasteup material with the latest texture: nearest pixels, no shine."""
+def load_image(tex, path, data=False):
+    """Puts the file into an image node, reloading it when it is already there."""
+    if tex.image and bpy.path.abspath(tex.image.filepath) == path:
+        tex.image.reload()
+    else:
+        img = bpy.data.images.load(path, check_existing=True)
+        img.filepath = bpy.path.relpath(path)
+        img.reload()
+        tex.image = img
+    if data:
+        tex.image.colorspace_settings.name = "Non-Color"
+
+
+def channel_node(nodes, key, y):
+    if key in nodes:
+        return nodes[key]
+    tex = nodes.new("ShaderNodeTexImage")
+    tex.name = key
+    tex.interpolation = "Closest"
+    tex.location = (-400, y)
+    return tex
+
+
+def update_material(s):
+    """The pasteup material with the latest channels: nearest pixels, no shine
+    unless a roughness map says so, glow from the emission map."""
     name = material_name()
     mat = bpy.data.materials.get(name) or bpy.data.materials.new(name)
     mat.use_nodes = True
@@ -116,22 +140,31 @@ def update_material(path):
         spec = socket(bsdf, "Specular IOR Level", "Specular")
         if spec:
             spec.default_value = 0.0
-        tex = nodes.new("ShaderNodeTexImage")
-        tex.name = "color"
-        tex.interpolation = "Closest"
-        tex.location = (-400, 0)
+        tex = channel_node(nodes, "color", 0)
         links.new(tex.outputs["Color"], socket(bsdf, "Base Color"))
         links.new(tex.outputs["Alpha"], socket(bsdf, "Alpha"))
         mat["pasteup"] = 1
 
-    tex = nodes["color"]
-    if tex.image and bpy.path.abspath(tex.image.filepath) == path:
-        tex.image.reload()
-    else:
-        img = bpy.data.images.load(path, check_existing=True)
-        img.filepath = bpy.path.relpath(path)
-        img.reload()
-        tex.image = img
+    bsdf = nodes["bsdf"]
+    load_image(nodes["color"], s["color"])
+
+    # Optional channels: wired while pasteup has them, unwired otherwise.
+    for key, y, target, data in (("emission", -300, ("Emission Color", "Emission"), False), ("roughness", -600, ("Roughness",), True)):
+        sock = socket(bsdf, *target)
+        path = s.get(key)
+        if path and os.path.exists(path):
+            tex = channel_node(nodes, key, y)
+            load_image(tex, path, data)
+            if not sock.links:
+                links.new(tex.outputs["Color"], sock)
+        else:
+            for l in list(sock.links):
+                links.remove(l)
+    strength = socket(bsdf, "Emission Strength")
+    if strength:
+        strength.default_value = 1.0 if s.get("emission") else 0.0
+    if not s.get("roughness"):
+        socket(bsdf, "Roughness").default_value = 1.0
     return mat
 
 
@@ -237,7 +270,7 @@ def poll():
 
     if s["texture"] != state["texture"] and s.get("color") and os.path.exists(s["color"]):
         state["texture"] = s["texture"]
-        mat = update_material(s["color"])
+        mat = update_material(s)
         scene = bpy.context.scene
         if scene.pasteup_show:
             show_material(synced_objects(scene), mat)

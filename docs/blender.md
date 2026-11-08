@@ -9,4 +9,4 @@ Install `tools/blender/pasteup_bridge.py`: Preferences › Add-ons › Install f
 | show texture | the objects show the material `pasteup <name>`; off brings their own back |
 | sync (pasteup header) | asks Blender to sync again |
 
-pasteup writes the texture as `<name>.png` beside the `.blend`, about 0.3 s after each change. The material samples it with Closest, roughness 1, metallic 0, no specular.
+pasteup writes the texture as `<name>.png` beside the `.blend`, about 0.3 s after each change, and the other channels as `<name>_emission.png`, `<name>_roughness.png`. The material samples them with Closest, metallic 0, no specular: emission into the emission color, roughness (non-color) into roughness, roughness 1 without one. AO is multiplied into the color unless kept apart (see channels).

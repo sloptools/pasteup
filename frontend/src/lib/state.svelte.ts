@@ -64,6 +64,10 @@ export type Blend = (typeof blends)[number]
 
 export type Region = 'refs' | 'canvas' | 'layers'
 
+// Texture channels, each a stack of layers: color, glow, ambient occlusion, roughness.
+export const channels = ['color', 'emission', 'ao', 'roughness'] as const
+export type Channel = (typeof channels)[number]
+
 export const tiles = ['off', 'x', 'y', 'xy'] as const
 export type Tile = (typeof tiles)[number]
 export const wraps = (t: Tile) => ({ x: t === 'x' || t === 'xy', y: t === 'y' || t === 'xy' })
@@ -90,8 +94,15 @@ export const app = $state({
   blend: null as string | null,
   size: 256,
   photos: [] as Photo[],
+  // The shown channel's layers; the others wait in stacks.
   layers: [] as Layer[],
   active: null as string | null,
+  channel: 'color' as Channel,
+  stacks: {} as Partial<Record<Channel, { layers: Layer[]; active: string | null }>>,
+  // Another channel shown faintly over the canvas, as a reference.
+  onion: { channel: null as Channel | null, opacity: 0.3 },
+  // AO multiplies into the color on export and in Blender.
+  bakeAO: true,
   // The layer whose name is being edited.
   renaming: null as string | null,
   // Ref space beside the canvas, collapsed or maximized.

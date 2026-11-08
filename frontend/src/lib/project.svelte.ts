@@ -1,9 +1,10 @@
 import { Confirm, OpenDialog, ProjectManifest, SaveDialog, SaveProject } from '../../wailsjs/go/main/App'
-import { resetHistory, stateKey } from './history.svelte'
-import { app, newId, say, type Layer, type Layout, type Photo, type Tile } from './state.svelte'
+import { layersKey, resetHistory } from './history.svelte'
+import { layersOf, present } from './channels'
+import { app, newId, say, type Channel, type Layer, type Layout, type Photo, type Tile } from './state.svelte'
 
 // A .pasteup file: project.json, pieces/ (layer pixels and painted masks), refs/
-// (photo copies). Layers sit under channels, color for now.
+// (photo copies). Layers sit under their channels.
 type LayerJson = Omit<Layer, 'canvas' | 'mask'> & { canvas: string | null; mask: string | null }
 type Manifest = {
   version: 1
@@ -14,7 +15,8 @@ type Manifest = {
   layout: Layout | null
   blend: string | null
   active: string | null
-  channels: { color: { layers: LayerJson[] } }
+  channels: Partial<Record<Channel, { layers: LayerJson[] }>>
+  bakeAO?: boolean
   photos: { id: string; name: string; entry: string; x: number; y: number }[]
 }
 
@@ -27,7 +29,7 @@ const photoEntries = new Map<string, string>()
 // The file the entries are in.
 let entriesIn: { path: string; names: Set<string> } | null = null
 
-const changes = () => stateKey() + JSON.stringify(app.photos.map((p) => [p.id, p.x, p.y])) + app.tile + app.swatches.join() + (app.layout?.path ?? '') + (app.layout?.uvs.length ?? 0)
+const changes = () => app.size + present().map((ch) => ch + layersKey(layersOf(ch))).join() + app.bakeAO + JSON.stringify(app.photos.map((p) => [p.id, p.x, p.y])) + app.tile + app.swatches.join() + (app.layout?.path ?? '') + (app.layout?.uvs.length ?? 0)
 
 export const dirty = () => changes() !== project.saved
 
@@ -67,7 +69,8 @@ async function write(path: string) {
     return name
   }
 
-  const layers = app.layers.map((l): LayerJson => ({ ...$state.snapshot(l), canvas: piece(l.canvas), mask: piece(l.mask) }) as LayerJson)
+  const stacks: Manifest['channels'] = {}
+  for (const ch of present()) stacks[ch] = { layers: layersOf(ch).map((l): LayerJson => ({ ...$state.snapshot(l), canvas: piece(l.canvas), mask: piece(l.mask) }) as LayerJson) }
 
   const photos = app.photos.map((p) => {
     let entry = photoEntries.get(p.id)
@@ -87,8 +90,9 @@ async function write(path: string) {
     swatches: [...app.swatches],
     layout: $state.snapshot(app.layout) as Layout | null,
     blend: app.blend,
-    active: app.active,
-    channels: { color: { layers } },
+    active: app.channel === 'color' ? app.active : (app.stacks.color?.active ?? null),
+    channels: stacks,
+    bakeAO: app.bakeAO,
     photos,
   }
   await SaveProject({ path, manifest: JSON.stringify(manifest), files, disk, keep, from: entriesIn?.path ?? '' })
@@ -139,8 +143,14 @@ export async function open(path: string) {
       return canvases.get(entry)!
     }
 
-    const layers: Layer[] = []
-    for (const l of m.channels.color.layers) layers.push({ ...l, canvas: await piece(l.canvas), mask: await piece(l.mask) })
+    const stacks: Partial<Record<Channel, { layers: Layer[]; active: string | null }>> = {}
+    for (const [ch, c] of Object.entries(m.channels) as [Channel, { layers: LayerJson[] }][]) {
+      const layers: Layer[] = []
+      for (const l of c.layers) layers.push({ ...l, canvas: await piece(l.canvas), mask: await piece(l.mask) })
+      stacks[ch] = { layers, active: layers.at(-1)?.id ?? null }
+    }
+    const color = stacks.color ?? { layers: [], active: null }
+    delete stacks.color
     const photos: Photo[] = []
     for (const p of m.photos) {
       photos.push({ id: p.id, name: p.name, dir: '', img: await load(url(p.entry)), x: p.x, y: p.y })
@@ -155,7 +165,11 @@ export async function open(path: string) {
       swatches: m.swatches,
       layout: m.layout,
       blend: m.blend,
-      layers,
+      layers: color.layers,
+      channel: 'color',
+      stacks,
+      onion: { channel: null, opacity: 0.3 },
+      bakeAO: m.bakeAO ?? true,
       photos,
       active: m.active,
       selection: null,

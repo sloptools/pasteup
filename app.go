@@ -2,9 +2,7 @@ package main
 
 import (
 	"context"
-	"encoding/base64"
 	"net/http"
-	"os"
 	"path/filepath"
 	"strings"
 
@@ -79,8 +77,9 @@ func loadLayout(glb, path string, sets map[string]int) (*Layout, error) {
 	return l, nil
 }
 
-// ExportPNG asks where to save the texture, starting at dir/name.png.
-func (a *App) ExportPNG(dir, name, pngBase64 string) (string, error) {
+// ExportPNG asks where to save the texture, starting at dir/name.png; the other
+// channels go beside it as name_<channel>.png.
+func (a *App) ExportPNG(dir, name string, pngs map[string]string) (string, error) {
 	path, err := runtime.SaveFileDialog(a.ctx, runtime.SaveDialogOptions{
 		Title:            "Export texture",
 		DefaultDirectory: dir,
@@ -90,11 +89,19 @@ func (a *App) ExportPNG(dir, name, pngBase64 string) (string, error) {
 	if err != nil || path == "" {
 		return "", err
 	}
-	data, err := base64.StdEncoding.DecodeString(pngBase64)
-	if err != nil {
-		return "", err
+	if filepath.Ext(path) != ".png" {
+		path += ".png"
 	}
-	return path, os.WriteFile(path, data, 0o644)
+	for channel, b64 := range pngs {
+		p, err := channelPath(path, channel)
+		if err != nil {
+			return "", err
+		}
+		if err := writePNG(p, b64); err != nil {
+			return "", err
+		}
+	}
+	return path, nil
 }
 
 // OpenPhotos asks for photos to add to the ref space.

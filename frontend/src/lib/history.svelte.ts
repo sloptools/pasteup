@@ -1,9 +1,10 @@
-import { app, cloneLayer, type Layer } from './state.svelte'
+import { app, channels, cloneLayer, type Channel, type Layer } from './state.svelte'
 
-// Undo over the layers and the texture size: a snapshot once edits rest, so a drag
-// or a run of key presses is one step. Pieces are never changed in place, so
-// snapshots share them.
-type Snap = { layers: Layer[]; active: string | null; size: number }
+// Undo over the layers of every channel and the texture size: a snapshot once edits
+// rest, so a drag or a run of key presses is one step. Pieces are never changed in
+// place, so snapshots share them. Showing another channel is no step.
+type Stacks = Partial<Record<Channel, { layers: Layer[]; active: string | null }>>
+type Snap = { layers: Layer[]; active: string | null; size: number; channel: Channel; stacks: Stacks }
 
 const limit = 100
 let past: Snap[] = []
@@ -14,9 +15,27 @@ let timer = 0
 let restoring = false
 
 const copy = (layers: Layer[]): Layer[] => layers.map(cloneLayer)
+const copyStacks = (st: Stacks): Stacks => Object.fromEntries(Object.entries(st).map(([ch, v]) => [ch, { layers: copy(v!.layers), active: v!.active }]))
 
-function key(layers: Layer[], size: number) {
-  return size + JSON.stringify(layers, (k, v) => (k === 'canvas' && v ? canvasKey(v) : v))
+const now = (): Snap => ({ layers: app.layers, active: app.active, size: app.size, channel: app.channel, stacks: app.stacks })
+
+// Each channel's layers as a string, whichever channel shows.
+function channelKeys(s: Snap): Partial<Record<Channel, string>> {
+  const out: Partial<Record<Channel, string>> = {}
+  for (const ch of channels) {
+    const layers = ch === s.channel ? s.layers : s.stacks[ch]?.layers
+    if (layers) out[ch] = layersKey(layers)
+  }
+  return out
+}
+
+export function layersKey(layers: Layer[]) {
+  return JSON.stringify(layers, (k, v) => ((k === 'canvas' || k === 'mask') && v ? canvasKey(v) : v))
+}
+
+function key(s: Snap) {
+  const keys = channelKeys(s)
+  return s.size + channels.map((ch) => (keys[ch] === undefined ? '' : ch + keys[ch])).join('|')
 }
 
 const keys = new WeakMap<HTMLCanvasElement, number>()
@@ -29,13 +48,13 @@ function canvasKey(c: HTMLCanvasElement) {
 function commit() {
   clearTimeout(timer)
   timer = 0
-  const layers = copy(app.layers)
-  const k = key(layers, app.size)
+  const snap = { ...now(), layers: copy(app.layers), stacks: copyStacks(app.stacks) }
+  const k = key(snap)
   if (k === lastKey) return
   if (last) past.push(last)
   if (past.length > limit) past.shift()
   future = []
-  last = { layers, active: app.active, size: app.size }
+  last = snap
   lastKey = k
 }
 
@@ -47,7 +66,7 @@ export function checkpoint() {
 export function track() {
   $effect.root(() => {
     $effect(() => {
-      key(app.layers, app.size)
+      key(now())
       if (restoring) {
         restoring = false
         return
@@ -58,12 +77,22 @@ export function track() {
   })
 }
 
+// Shows the channel the undone or redone step changed, so the change is seen.
 function restore(s: Snap) {
+  const was = last ? channelKeys(last) : {}
+  const will = channelKeys(s)
+  const changed = channels.find((ch) => was[ch] !== will[ch]) ?? app.channel
   restoring = true
   last = s
-  lastKey = key(s.layers, s.size)
-  app.layers = copy(s.layers)
-  app.active = s.active
+  lastKey = key(s)
+  const all: Stacks = { ...copyStacks(s.stacks), [s.channel]: { layers: copy(s.layers), active: s.active } }
+  const shown = all[changed] ? changed : s.channel
+  const { layers, active } = all[shown]!
+  delete all[shown]
+  app.stacks = all
+  app.channel = shown
+  app.layers = layers
+  app.active = active
   app.size = s.size
 }
 
@@ -85,15 +114,12 @@ export function redo() {
   return true
 }
 
-// What undo tracks, as a string: changes when the layers or the size do.
-export const stateKey = () => key(app.layers, app.size)
-
 // Starts undo over from what is there now, after opening a project.
 export function resetHistory() {
   clearTimeout(timer)
   timer = 0
   past = []
   future = []
-  last = { layers: copy(app.layers), active: app.active, size: app.size }
-  lastKey = key(last.layers, last.size)
+  last = { ...now(), layers: copy(app.layers), stacks: copyStacks(app.stacks) }
+  lastKey = key(last)
 }
