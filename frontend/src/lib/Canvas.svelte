@@ -84,7 +84,7 @@
     view?.fit(0, 0, app.size, app.size)
   }
 
-  const finishSettings = () => ({ colors: paletteColors(), dither: app.finish.dither, sharpen: app.finish.sharpen })
+  const finishSettings = () => ({ colors: paletteColors(), dither: app.finish.dither, sharpen: app.finish.sharpen, psx: app.finish.psx })
 
   // The auto palette follows the color once edits rest; set again only when it changed.
   let paletteTimer = 0

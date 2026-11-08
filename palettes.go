@@ -28,8 +28,12 @@ func hexes(pal []palette.Color) []string {
 	return out
 }
 
-func (a *App) QuakePalette() Palette {
-	return Palette{Name: "quake", Colors: hexes(palette.Quake())}
+// BuiltinPalettes are the palettes pasteup knows without a file.
+func (a *App) BuiltinPalettes() []Palette {
+	return []Palette{
+		{Name: "quake", Colors: hexes(palette.Quake())},
+		{Name: "quake 2", Colors: hexes(palette.Quake2())},
+	}
 }
 
 // OpenPalette asks for a palette file: .lmp, .gpl, .hex or an image.

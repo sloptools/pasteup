@@ -14,6 +14,10 @@ export function BridgeTexture(arg1, arg2) {
   return window['go']['main']['App']['BridgeTexture'](arg1, arg2);
 }
 
+export function BuiltinPalettes() {
+  return window['go']['main']['App']['BuiltinPalettes']();
+}
+
 export function Confirm(arg1, arg2, arg3) {
   return window['go']['main']['App']['Confirm'](arg1, arg2, arg3);
 }
@@ -48,10 +52,6 @@ export function OpenPhotos() {
 
 export function ProjectManifest(arg1) {
   return window['go']['main']['App']['ProjectManifest'](arg1);
-}
-
-export function QuakePalette() {
-  return window['go']['main']['App']['QuakePalette']();
 }
 
 export function SaveDialog(arg1, arg2) {

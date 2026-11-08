@@ -205,3 +205,12 @@ var quakeLmp []byte
 func Quake() []Color {
 	return parseLmp(quakeLmp)
 }
+
+// Quake 2's palette (from pics/colormap.pcx), as func_godot ships it (MIT).
+//
+//go:embed quake2.lmp
+var quake2Lmp []byte
+
+func Quake2() []Color {
+	return parseLmp(quake2Lmp)
+}

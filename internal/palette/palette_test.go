@@ -29,7 +29,10 @@ func TestParseText(t *testing.T) {
 	if err != nil || len(pal) != 2 || pal[1].Hex() != "#00ff00" {
 		t.Fatalf("hex: %v %v", pal, err)
 	}
-	if len(Quake()) != 256 {
-		t.Fatal("quake palette")
+	if len(Quake()) != 256 || len(Quake2()) != 256 {
+		t.Fatal("quake palettes")
+	}
+	if Quake2()[1].Hex() != "#0f0f0f" {
+		t.Fatalf("quake 2 second color %s", Quake2()[1].Hex())
 	}
 }

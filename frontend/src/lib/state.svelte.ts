@@ -104,8 +104,8 @@ export const app = $state({
   // AO multiplies into the color on export and in Blender.
   bakeAO: true,
   // The crunch over the color: a palette (none, computed, or one of the project's),
-  // ordered dither and sharpen.
-  finish: { mode: 'off' as 'off' | 'auto' | 'fixed', colors: 64, palette: null as string | null, dither: 0, sharpen: 0 },
+  // ordered dither, sharpen, and the PS1's 15-bit color.
+  finish: { mode: 'off' as 'off' | 'auto' | 'fixed', colors: 64, palette: null as string | null, dither: 0, sharpen: 0, psx: false },
   palettes: [] as { name: string; colors: string[] }[],
   autoPalette: [] as string[],
   // Goes up with each change of the texture, for views that follow it.
@@ -206,4 +206,4 @@ export function paletteColors(): string[] {
   return []
 }
 
-export const finishing = () => paletteColors().length > 0 || app.finish.dither > 0 || app.finish.sharpen > 0
+export const finishing = () => paletteColors().length > 0 || app.finish.dither > 0 || app.finish.sharpen > 0 || app.finish.psx

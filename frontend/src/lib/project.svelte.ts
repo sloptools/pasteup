@@ -176,7 +176,7 @@ export async function open(path: string) {
       stacks,
       onion: { channel: null, opacity: 0.3 },
       bakeAO: m.bakeAO ?? true,
-      finish: m.finish ?? { mode: 'off', colors: 64, palette: null, dither: 0, sharpen: 0 },
+      finish: { mode: 'off', colors: 64, palette: null, dither: 0, sharpen: 0, psx: false, ...m.finish },
       palettes: m.palettes ?? [],
       autoPalette: m.autoPalette ?? [],
       photos,

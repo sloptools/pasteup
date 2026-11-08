@@ -1,12 +1,19 @@
 <script lang="ts">
   import Icon from './Icon.svelte'
   import Slider from './Slider.svelte'
-  import { LospecPalette, OpenPalette, QuakePalette } from '../../wailsjs/go/main/App'
+  import { BuiltinPalettes, LospecPalette, OpenPalette } from '../../wailsjs/go/main/App'
   import { app, paletteColors, say } from './state.svelte'
 
   let pickers: HTMLInputElement[] = []
   let tab = $state<'swatches' | 'palette'>('swatches')
   let slug = $state<string | null>(null)
+  let builtins = $state<{ name: string; colors: string[] }[]>([])
+  BuiltinPalettes().then((b) => (builtins = b))
+
+  // The PS1's look: a 16 or 256 color table per texture, in 15-bit color.
+  function psx(colors: number) {
+    Object.assign(app.finish, { mode: 'auto', colors, psx: true })
+  }
 
   // A palette for the project, chosen at once; one of the same name is replaced.
   function addPalette(p: { name: string; colors: string[] } | null) {
@@ -96,7 +103,9 @@
               {#each app.palettes as p}<option value={p.name}>{p.name}</option>{/each}
             </select>
           {/if}
-          <button class="text-button" title="Quake's 256 colors" onclick={async () => addPalette(await QuakePalette())}>quake</button>
+          {#each builtins as b}
+            <button class="text-button" title="{b.name}'s {b.colors.length} colors" onclick={() => addPalette(b)}>{b.name}</button>
+          {/each}
           <button class="text-button" title="A palette from lospec.com by its slug" onclick={() => (slug = '')}>lospec</button>
           <button class="text-button" title="A palette file: .lmp, .gpl, .hex or an image" onclick={file}>file</button>
         </div>
@@ -113,6 +122,13 @@
           />
         {/if}
       {/if}
+      <div class="line">
+        <button class="check" class:on={app.finish.psx} title="The PS1's 15-bit color: 32 steps a channel" onclick={() => (app.finish.psx = !app.finish.psx)}>
+          <span class="box"></span>psx
+        </button>
+        <button class="text-button" title="PS1 4-bit texture: 16 colors from the texture, 15-bit" onclick={() => psx(16)}>psx 16</button>
+        <button class="text-button" title="PS1 8-bit texture: 256 colors from the texture, 15-bit" onclick={() => psx(256)}>psx 256</button>
+      </div>
       {#if paletteColors().length}
         <div class="palette">
           {#each paletteColors() as color, i (i)}

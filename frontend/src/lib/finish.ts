@@ -1,8 +1,8 @@
 import { CanvasSource, GlProgram, Mesh, MeshGeometry, RenderTexture, Shader, Texture, type Renderer } from 'pixi.js'
 import { quad, vertex } from './blend'
 
-// The crunch over the finished color: sharpen, ordered dither, then the nearest
-// palette color. Colors are premultiplied; alpha stays.
+// The crunch over the finished color: sharpen, ordered dither, the nearest palette
+// color, and with psx 15-bit color. Colors are premultiplied; alpha stays.
 const fragment = /* glsl */ `#version 300 es
 precision highp float;
 in vec2 vUV;
@@ -12,6 +12,7 @@ uniform sampler2D uPalette;
 uniform float uColors;
 uniform float uDither;
 uniform float uSharpen;
+uniform float uLevels;
 uniform vec2 uTexel;
 
 const float bayer[16] = float[16](0., 8., 2., 10., 12., 4., 14., 6., 3., 11., 1., 9., 15., 7., 13., 5.);
@@ -58,11 +59,14 @@ void main() {
     c = best;
   }
 
+  // PS1 color: 5 bits a channel, after the palette, so its colors land there too.
+  if (uLevels > 0.5) c = floor(clamp(c, 0.0, 1.0) * uLevels + 0.5) / uLevels;
+
   color = vec4(clamp(c, 0.0, 1.0) * s.a, s.a);
 }
 `
 
-export type Finish = { colors: string[]; dither: number; sharpen: number }
+export type Finish = { colors: string[]; dither: number; sharpen: number; psx: boolean }
 
 export class FinishPass {
   private mesh: Mesh<MeshGeometry, Shader>
@@ -79,6 +83,7 @@ export class FinishPass {
           uColors: { value: 0, type: 'f32' },
           uDither: { value: 0, type: 'f32' },
           uSharpen: { value: 0, type: 'f32' },
+          uLevels: { value: 0, type: 'f32' },
           uTexel: { value: [0, 0], type: 'vec2<f32>' },
         },
       },
@@ -112,6 +117,7 @@ export class FinishPass {
     u.uColors = Math.min(f.colors.length, 256)
     u.uDither = f.dither
     u.uSharpen = f.sharpen
+    u.uLevels = f.psx ? 31 : 0
     u.uTexel = [1 / source.width, 1 / source.height]
     this.mesh.scale.set(target.width, target.height)
     this.renderer.render({ container: this.mesh, target, clear: true, clearColor: [0, 0, 0, 0] })

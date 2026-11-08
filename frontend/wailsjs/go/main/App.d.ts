@@ -8,6 +8,8 @@ export function BridgeRequestSync(arg1:string):Promise<void>;
 
 export function BridgeTexture(arg1:string,arg2:Record<string, string>):Promise<void>;
 
+export function BuiltinPalettes():Promise<Array<main.Palette>>;
+
 export function Confirm(arg1:string,arg2:string,arg3:string):Promise<boolean>;
 
 export function ExportPNG(arg1:string,arg2:string,arg3:Record<string, string>):Promise<string>;
@@ -25,8 +27,6 @@ export function OpenPalette():Promise<main.Palette>;
 export function OpenPhotos():Promise<Array<string>>;
 
 export function ProjectManifest(arg1:string):Promise<string>;
-
-export function QuakePalette():Promise<main.Palette>;
 
 export function SaveDialog(arg1:string,arg2:string):Promise<string>;
 
