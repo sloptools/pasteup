@@ -37,6 +37,10 @@
     },
   ]
 
+  // Tools by kind, with a line between kinds: placing, selecting, painting, filling.
+  const groups: CanvasTool[][] = [['move', 'transform', 'island'], ['select'], ['brush', 'eraser'], ['fill', 'shape']]
+  const group = (t: Tool) => groups.findIndex((g) => g.includes(t.id))
+
   // The tool whose tip shows, after a short rest on its button.
   let tipFor = $state<{ tool: Tool; top: number } | null>(null)
   let tipTimer = 0
@@ -87,7 +91,8 @@
 <svelte:window onpointerdown={outside} onkeydown={(e) => e.key === 'Escape' && (open = null)} />
 
 <div class="tools">
-  {#each tools as t}
+  {#each tools as t, i}
+    {#if i && group(t) !== group(tools[i - 1])}<span class="sep"></span>{/if}
     <button
       class="tool"
       class:on={app.canvasTool === t.id}
@@ -138,6 +143,12 @@
     padding: 6px 0;
     background: var(--panel);
     border-left: 1px solid var(--line);
+  }
+  .sep {
+    width: 16px;
+    height: 1px;
+    margin: 3px 0;
+    background: var(--line);
   }
   .tool {
     position: relative;

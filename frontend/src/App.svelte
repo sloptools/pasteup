@@ -13,6 +13,7 @@
   import { redo, track, undo } from './lib/history.svelte'
   import { addAdjust, duplicate, move, newLayer, setSize } from './lib/layerOps'
   import Tools from './lib/Tools.svelte'
+  import KeyHelp from './lib/KeyHelp.svelte'
   import { loadNames } from './lib/grunge.svelte'
   import { dirty, markClean, open, openAny, project, projectName, save } from './lib/project.svelte'
   import ColorPanel from './lib/ColorPanel.svelte'
@@ -22,6 +23,7 @@
 
   let canvas: Canvas
   let refs: RefSpace
+  let help = $state(false)
   const wails = 'go' in window
 
   async function openModel(path = '') {
@@ -66,6 +68,11 @@
     if (e.key === 'Tab') {
       e.preventDefault()
       toggleRefs(e.shiftKey)
+      return
+    }
+    if (e.key === '?') {
+      e.preventDefault()
+      help = true
       return
     }
     if (canvas.gradientKey(e)) return e.preventDefault()
@@ -165,7 +172,7 @@
     <span class="title" title={project.path ?? 'not saved yet'}>{projectName()}{#if dirty()}<span class="unsaved" title="unsaved changes">●</span>{/if}</span>
     <button class="text-button" title="Open a project or a model (⌘O)" onclick={() => openAny(openModel)}>open</button>
     <button class="text-button" title="Save (⌘S), save as (⌘⇧S)" onclick={() => save()}>save</button>
-    <span class="model mono" title="The model whose UVs show">{app.layout?.name ?? 'no model'}</span>
+    <span class="model mono" title="The model whose UVs show"><span class="label">model</span> {app.layout?.name ?? 'none'}</span>
     {#if app.blend}
       <span class="blender mono" class:live={bridge.live}>
         <span class="dot"></span>blender {bridge.live ? 'live' : 'offline'}
@@ -230,8 +237,15 @@
     <Layers onmerge={() => canvas.merge()} />
   </aside>
 
-  <footer class="mono">{app.status}</footer>
+  <footer class="mono">
+    <span class="status">{app.status}</span>
+    <button class="keys-help" title="All keys (?)" onclick={() => (help = true)}>? keys</button>
+  </footer>
 </div>
+
+{#if help}
+  <KeyHelp onclose={() => (help = false)} />
+{/if}
 
 <style>
   .shell {
@@ -272,6 +286,9 @@
   .title {
     font-weight: 600;
     color: var(--strong);
+  }
+  .model .label {
+    color: var(--faint);
   }
   .model {
     font: 12px var(--mono);
@@ -349,6 +366,23 @@
   }
   .masking .icon {
     color: var(--accent);
+  }
+  .status {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .keys-help {
+    border: 0;
+    padding: 0 2px;
+    background: none;
+    font: 11px var(--mono);
+    color: var(--dim);
+  }
+  .keys-help:hover {
+    color: var(--strong);
   }
   .selected {
     flex: none;

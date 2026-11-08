@@ -1,9 +1,9 @@
 import type { Layout } from './state.svelte'
 
-// Unique face edges in UV space, four numbers each.
-export function edges(layout: Layout): number[] {
-  const seen = new Set<string>()
-  const out: number[] = []
+// Unique face edges in UV space, four numbers each: island outlines (edges of
+// one face only) and the edges inside islands.
+export function edges(layout: Layout): { outline: number[]; inside: number[] } {
+  const found = new Map<string, { at: number[]; faces: number }>()
   const uv = layout.uvs
   for (let t = 0; t < uv.length; t += 6) {
     for (let c = 0; c < 3; c++) {
@@ -12,12 +12,15 @@ export function edges(layout: Layout): number[] {
       const ka = `${uv[a]},${uv[a + 1]}`
       const kb = `${uv[b]},${uv[b + 1]}`
       const key = ka < kb ? ka + ' ' + kb : kb + ' ' + ka
-      if (seen.has(key)) continue
-      seen.add(key)
-      out.push(uv[a], uv[a + 1], uv[b], uv[b + 1])
+      const e = found.get(key)
+      if (e) e.faces++
+      else found.set(key, { at: [uv[a], uv[a + 1], uv[b], uv[b + 1]], faces: 1 })
     }
   }
-  return out
+  const outline: number[] = []
+  const inside: number[] = []
+  for (const e of found.values()) (e.faces === 1 ? outline : inside).push(...e.at)
+  return { outline, inside }
 }
 
 // The island under a UV point, or null.

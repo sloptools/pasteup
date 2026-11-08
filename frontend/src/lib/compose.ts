@@ -4,7 +4,7 @@ import { BlendPass } from './blend'
 import { BlurPass } from './blur'
 import { eraser, grunge } from './grunge.svelte'
 import { eachFace } from './uv'
-import { exact, matrix, place, raster } from './transform'
+import { box, exact, matrix, place, raster } from './transform'
 import type { Layer, Layout } from './state.svelte'
 
 // Each layer is drawn into a texture of its own at texture size, transformed and
@@ -209,6 +209,34 @@ export class Composer {
       this.renderer.render({ container: scene, target: rt, clear: false })
       scene.destroy({ children: true })
     }
+  }
+
+  // What the layer's texture was last drawn from; empty for adjustments, which redraw each time.
+  sigOf(id: string) {
+    return this.layers.get(id)?.sig ?? ''
+  }
+
+  // A small picture of the layer as it last landed: pieces cropped to their rectangle.
+  thumb(l: Layer, px: number): HTMLCanvasElement | null {
+    const entry = this.layers.get(l.id)
+    if (!entry || l.adjust) return null
+    const size = this.target.width
+    let [x, y, w, h] = [0, 0, size, size]
+    if (l.canvas) {
+      const b = box(l)
+      x = Math.max(0, Math.floor(b.x))
+      y = Math.max(0, Math.floor(b.y))
+      w = Math.min(size, Math.ceil(b.x + b.w)) - x
+      h = Math.min(size, Math.ceil(b.y + b.h)) - y
+      if (w <= 0 || h <= 0) [x, y, w, h] = [0, 0, size, size]
+    }
+    const f = px / Math.max(w, h)
+    const out = document.createElement('canvas')
+    out.width = out.height = px
+    const ctx = out.getContext('2d')!
+    ctx.imageSmoothingEnabled = f < 1
+    ctx.drawImage(this.canvas(entry.rt), x, y, w, h, (px - w * f) / 2, (px - h * f) / 2, w * f, h * f)
+    return out
   }
 
   // Drops the textures of layers that are gone, and of pieces only undo still holds.

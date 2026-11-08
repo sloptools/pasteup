@@ -16,6 +16,7 @@
   import { Marquee } from './marquee'
   import { combine, selection, type Combine } from './selection'
   import { place as clipPlace, useComposer } from './clipboard'
+  import { refreshThumbs } from './thumbs.svelte'
 
   let el: HTMLDivElement
   let view: View
@@ -134,9 +135,12 @@
     const size = app.size
     uvLines.clear()
     if (!app.layout) return view.draw()
-    const e = edges(app.layout)
-    for (let i = 0; i < e.length; i += 4) uvLines.moveTo(e[i] * size, e[i + 1] * size).lineTo(e[i + 2] * size, e[i + 3] * size)
-    uvLines.stroke({ width: 1, color: 0xebe8df, alpha: 0.35, pixelLine: true })
+    // Island outlines matter for painting; the edges inside only faintly.
+    const { outline, inside } = edges(app.layout)
+    for (const [lines, alpha] of [[inside, 0.1], [outline, 0.55]] as const) {
+      for (let i = 0; i < lines.length; i += 4) uvLines.moveTo(lines[i] * size, lines[i + 1] * size).lineTo(lines[i + 2] * size, lines[i + 3] * size)
+      uvLines.stroke({ width: 1, color: 0xebe8df, alpha, pixelLine: true })
+    }
     view.draw()
   })
 
@@ -185,6 +189,7 @@
     current()
     composer.wrap = wraps(app.tile)
     composer.render(app.layers.map(cloneLayer), app.layout)
+    refreshThumbs(composer)
     bridge.changed()
     view.draw()
   }
@@ -562,6 +567,7 @@
   {#if hover}
     <div class="coords">{hover[0]}, {hover[1]}{hoverIsland !== null ? ` · island ${hoverIsland}` : ''}</div>
   {/if}
+  <button class="zoom mono" title="Fit (⌘0)" onclick={fit}>{Math.round(zoom * 100)}%</button>
 </div>
 
 <style>
@@ -577,9 +583,24 @@
   .canvas :global(canvas) {
     display: block;
   }
+  .zoom {
+    position: absolute;
+    right: 8px;
+    bottom: 6px;
+    padding: 0 4px;
+    border: 0;
+    border-radius: 4px;
+    background: none;
+    font: 11px var(--mono);
+    color: var(--dim);
+  }
+  .zoom:hover {
+    color: var(--strong);
+    background: var(--hover);
+  }
   .coords {
     position: absolute;
-    right: 10px;
+    right: 56px;
     bottom: 8px;
     font: 11px var(--mono);
     color: var(--dim);

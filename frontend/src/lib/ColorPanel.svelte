@@ -138,13 +138,13 @@
   }
   .swatches {
     display: grid;
-    grid-template-columns: repeat(auto-fill, 16px);
+    grid-template-columns: repeat(auto-fill, 14px);
     gap: 3px;
     margin-top: 10px;
   }
   .cell {
-    width: 16px;
-    height: 16px;
+    width: 14px;
+    height: 14px;
     padding: 0;
     border: 0;
     border-radius: 3px;

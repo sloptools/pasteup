@@ -1,5 +1,11 @@
 @import './styles/tokens.css';
 
+/* The checker under transparent texels, as the canvas draws it. */
+:root {
+  --checker-a: #1f1f1d;
+  --checker-b: #252522;
+}
+
 * {
   box-sizing: border-box;
 }

@@ -5,6 +5,7 @@
   import { activeLayer, app, blends, masking, neutral, removeLayer, type Adjust, type Layer } from './state.svelte'
   import { addAdjust, duplicate, invertMask, newGrunge, newLayer, toggleMaskMode } from './layerOps'
   import { generated, grunge, newMask, scaleFor } from './grunge.svelte'
+  import { thumbs } from './thumbs.svelte'
 
   let { onmerge }: { onmerge: () => void } = $props()
   const active = $derived(activeLayer())
@@ -20,6 +21,8 @@
   ]
 
   let armed = $state<string | null>(null)
+  // Effect settings folded away to keep the list tall.
+  let folded = $state({ grunge: false, blur: false })
   let menu = $state<{ x: number; y: number; items: Item[] } | null>(null)
 
   // On a row the menu acts on that layer, which becomes active; elsewhere only new layers.
@@ -157,33 +160,38 @@
         <button class="icon" class:off={!l.visible} title="visible" onclick={() => (l.visible = !l.visible)}>
           <Icon name="eye" size={11} />
         </button>
+        <span class="thumb" class:off={!l.visible}>
+          {#if l.adjust}<Icon name="adjust" size={11} />{:else if thumbs[l.id]}<img src={thumbs[l.id]} alt="" />{/if}
+        </span>
         {#if app.renaming === l.id}
           <input class="name" value={l.name} use:focus onkeydown={(e) => nameKey(e, l)} onblur={(e) => rename(l, e.currentTarget.value)} />
         {:else}
           <span class="name">{l.name}</span>
         {/if}
+        <span class="island mono">
+          {[l.blend === 'normal' ? '' : l.blend, l.opacity < 1 ? Math.round(l.opacity * 100) : '', l.island === null ? '' : `island ${l.island}`]
+            .filter(Boolean)
+            .join(' · ')}
+        </span>
+        {#if l.blur}<span class="badge" title="blurred"><Icon name="blur" size={11} /></span>{/if}
+        {#if l.grunge}<span class="badge" title="grunge mask"><Icon name="grunge" size={11} /></span>{/if}
         {#if l.mask}
           <button
-            class="chip mono"
+            class="badge mask"
             class:on={masking() && l.id === app.active}
             title="Paint the mask (Q)"
             onclick={() => {
               app.maskOf = masking() && l.id === app.active ? null : l.id
               app.active = l.id
-            }}>mask</button
+            }}><Icon name="invert" size={11} /></button
           >
         {/if}
-        <span class="island mono">
-          {[l.blend === 'normal' ? '' : l.blend, l.opacity < 1 ? Math.round(l.opacity * 100) : '', l.island === null ? '' : `island ${l.island}`, l.grunge ? 'grunge' : '', l.blur ? 'blur' : '']
-            .filter(Boolean)
-            .join(' · ')}
-        </span>
         <button class="icon remove" class:armed={armed === l.id} title="delete (Backspace in the canvas)" onclick={() => remove(l.id)}>
           {#if armed === l.id}delete?{:else}<Icon name="x" size={11} />{/if}
         </button>
       </div>
     {:else}
-      <div class="empty">cut a piece in the refs</div>
+      <div class="empty">cut a piece in the refs, paint, or paste</div>
     {/each}
     {#if drag}<div class="line" style:top="{lineY - 1}px"></div>{/if}
   </div>
@@ -221,59 +229,63 @@
           <button class="text-button" title="Take the primary color" onclick={() => active.color && (active.color = app.colors[0])}>primary</button>
         </div>
       {/if}
-      <div class="props">
-        <span class="kind mono">mask</span>
-        {#if active.mask}
+      {#if active.mask}
+        <div class="props">
+          <span class="kind mono">mask</span>
           <button class="check" class:on={masking()} title="Paint the mask: brush shows, eraser hides (Q)" onclick={() => (app.maskOf = masking() ? null : active.id)}>
             <span class="box"></span>paint
           </button>
           <div class="spacer"></div>
           <button class="icon small" title="Swap shown and hidden" onclick={() => invertMask(active)}><Icon name="invert" /></button>
           <button class="icon small" title="Remove the painted mask" onclick={() => removeMask(active)}><Icon name="trash" /></button>
-        {:else}
-          <button class="text-button" title="A mask to paint where the layer shows (Q)" onclick={toggleMaskMode}>+ mask</button>
-        {/if}
-      </div>
-      <div class="props">
-        <span class="kind mono">grunge</span>
-        {#if active.grunge}
-          <select class="mono grunge-map" title="Grunge mask: the layer shows only where it does" value={active.grunge.map} onchange={(e) => setGrunge(active, e.currentTarget.value)}>
-            {#each [...generated, ...grunge.names] as name}<option value={name}>{name.replace('_', ' ')}</option>{/each}
-          </select>
-          <button class="icon small" class:on={active.grunge.invert} title="Inverted: show where the grunge hides" onclick={() => active.grunge && (active.grunge.invert = !active.grunge.invert)}><Icon name="invert" /></button>
-          <button class="icon small" title="Remove the grunge mask" onclick={() => (active.grunge = null)}><Icon name="trash" /></button>
-        {:else}
-          <button class="text-button" title="A grunge mask: the layer shows only where it does" onclick={() => setGrunge(active, 'clouds')}>+ grunge</button>
-        {/if}
-      </div>
-      {#if active.grunge}
-        {@const g = active.grunge}
-        <div class="adjust">
-          <Slider bind:value={g.scale} label={g.map === 'noise' ? 'block' : 'scale'} min={1} max={16} step={1} title={g.map === 'noise' ? 'Block size in texels' : 'Repeats across the texture'} />
-          <Slider bind:value={g.stretch} label="stretch" min={-8} max={8} step={1} reset={1} title="Pulls the map down (up to 8) or across (down to -8); double-click resets" />
-          <Slider bind:value={g.level} label="level" min={-1} max={1} step={0.01} scale={100} reset={0} title="How much shows; double-click resets" />
-          <Slider bind:value={g.contrast} label="contrast" min={0} max={1} step={0.01} scale={100} title="Soft to hard edges" />
-          <Slider bind:value={g.seed} label="seed" min={1} max={99} step={1} title="Another variant" />
         </div>
       {/if}
-      {#if !active.adjust}
+      {#if active.grunge}
+        {@const g = active.grunge}
         <div class="props">
-          <span class="kind mono">blur</span>
-          {#if active.blur}
-            <div class="spacer"></div>
-            <button class="icon small" class:on={active.blur.linked} title="Across and down together" onclick={() => active.blur && (active.blur.linked = !active.blur.linked)}><Icon name="link" /></button>
-            <button class="icon small" title="Remove the blur" onclick={() => (active.blur = null)}><Icon name="trash" /></button>
-          {:else}
-            <button class="text-button" title="Gaussian blur, before the masks" onclick={() => (active.blur = { x: 2, y: 2, linked: true })}>+ blur</button>
-          {/if}
+          <button class="kind fold mono" title="Show or hide its settings" onclick={() => (folded.grunge = !folded.grunge)}>
+            <span class="caret" class:open={!folded.grunge}>▸</span>grunge
+          </button>
+          <select class="mono grunge-map" title="Grunge mask: the layer shows only where it does" value={g.map} onchange={(e) => setGrunge(active, e.currentTarget.value)}>
+            {#each [...generated, ...grunge.names] as name}<option value={name}>{name.replace('_', ' ')}</option>{/each}
+          </select>
+          <button class="icon small" class:on={g.invert} title="Inverted: show where the grunge hides" onclick={() => (g.invert = !g.invert)}><Icon name="invert" /></button>
+          <button class="icon small" title="Remove the grunge mask" onclick={() => (active.grunge = null)}><Icon name="trash" /></button>
         </div>
-        {#if active.blur}
-          {@const b = active.blur}
+        {#if !folded.grunge}
+          <div class="adjust">
+            <Slider bind:value={g.scale} label={g.map === 'noise' ? 'block' : 'scale'} min={1} max={16} step={1} title={g.map === 'noise' ? 'Block size in texels' : 'Repeats across the texture'} />
+            <Slider bind:value={g.stretch} label="stretch" min={-8} max={8} step={1} reset={1} title="Pulls the map down (up to 8) or across (down to -8); double-click resets" />
+            <Slider bind:value={g.level} label="level" min={-1} max={1} step={0.01} scale={100} reset={0} title="How much shows; double-click resets" />
+            <Slider bind:value={g.contrast} label="contrast" min={0} max={1} step={0.01} scale={100} title="Soft to hard edges" />
+            <Slider bind:value={g.seed} label="seed" min={1} max={99} step={1} title="Another variant" />
+          </div>
+        {/if}
+      {/if}
+      {#if active.blur}
+        {@const b = active.blur}
+        <div class="props">
+          <button class="kind fold mono" title="Show or hide its settings" onclick={() => (folded.blur = !folded.blur)}>
+            <span class="caret" class:open={!folded.blur}>▸</span>blur
+          </button>
+          <span class="summary mono">{b.x}{b.linked ? '' : ` × ${b.y}`}</span>
+          <div class="spacer"></div>
+          <button class="icon small" class:on={b.linked} title="Across and down together" onclick={() => (b.linked = !b.linked)}><Icon name="link" /></button>
+          <button class="icon small" title="Remove the blur" onclick={() => (active.blur = null)}><Icon name="trash" /></button>
+        </div>
+        {#if !folded.blur}
           <div class="adjust">
             <Slider bind:value={() => b.x, (v) => blurTo(b, 'x', v)} label="across" min={0} max={32} step={0.5} decimals={1} title="Standard deviation in texels" />
             <Slider bind:value={() => b.y, (v) => blurTo(b, 'y', v)} label="down" min={0} max={32} step={0.5} decimals={1} title="Standard deviation in texels" />
           </div>
         {/if}
+      {/if}
+      {#if !active.mask || !active.grunge || (!active.blur && !active.adjust)}
+        <div class="props adds">
+          {#if !active.mask}<button class="text-button" title="A mask to paint where the layer shows (Q)" onclick={toggleMaskMode}>+ mask</button>{/if}
+          {#if !active.grunge}<button class="text-button" title="A grunge mask: the layer shows only where it does" onclick={() => setGrunge(active, 'clouds')}>+ grunge</button>{/if}
+          {#if !active.blur && !active.adjust}<button class="text-button" title="Gaussian blur, before the masks" onclick={() => (active.blur = { x: 2, y: 2, linked: true })}>+ blur</button>{/if}
+        </div>
       {/if}
     </div>
   {/if}
@@ -317,10 +329,37 @@
     min-width: 0;
   }
   .kind {
-    width: 52px;
+    width: 60px;
     flex: none;
     font: 12px var(--mono);
     color: var(--dim);
+  }
+  .fold {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 0;
+    border: 0;
+    background: none;
+    text-align: left;
+  }
+  .fold:hover {
+    color: var(--strong);
+  }
+  .caret {
+    font-size: 11px;
+    line-height: 1;
+    transition: transform 0.1s;
+  }
+  .caret.open {
+    transform: rotate(90deg);
+  }
+  .summary {
+    font: 12px var(--mono);
+    color: var(--fg);
+  }
+  .adds {
+    gap: 6px;
   }
   .icon.small {
     padding: 3px;
@@ -333,17 +372,40 @@
   .icon.small.on {
     color: var(--accent);
   }
-  .chip {
-    height: 16px;
-    padding: 0 4px;
+  .thumb {
+    width: 22px;
+    height: 22px;
+    flex: none;
+    display: grid;
+    place-items: center;
     border: 1px solid var(--line);
+    border-radius: 3px;
+    color: var(--dim);
+    background: repeating-conic-gradient(var(--checker-a) 0 25%, var(--checker-b) 0 50%) 0 0 / 8px 8px;
+    overflow: hidden;
+  }
+  .thumb img {
+    width: 100%;
+    height: 100%;
+    image-rendering: pixelated;
+  }
+  .thumb.off {
+    opacity: 0.4;
+  }
+  .badge {
+    display: grid;
+    place-items: center;
+    padding: 2px;
+    border: 0;
     border-radius: 4px;
     background: none;
-    font: 10px var(--mono);
     color: var(--dim);
   }
-  .chip.on {
-    border-color: var(--accent);
+  .badge.mask:hover {
+    color: var(--strong);
+    background: var(--hover);
+  }
+  .badge.on {
     color: var(--accent);
   }
   .swatch {

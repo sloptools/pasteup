@@ -7,6 +7,7 @@
 | ⌘⇧A | adjustment layer above the active one |
 | ⌘E | merge down |
 | ⌘[, ⌘] | move down, up |
+| ? | all keys at a glance (also ? keys at the bottom right) |
 | Q | paint the active layer's mask (gives it one if it has none); Q or Esc back to its pixels |
 | ↑, ↓ | select the layer above, below (after a click in the panel; other keys act as in the canvas) |
 | drag in the list | move to the line shown |
@@ -53,3 +54,5 @@ A color layer is the whole texture in one color, no pixels: change it with the s
 ## Blur
 
 A gaussian blur on any layer but adjustments (+ blur in its settings): across and down in texels, the standard deviation as in GIMP; the chain moves both together. It comes before the masks, so they still cut sharp. Edges clamp, so a layer covering the texture doesn't darken at its border; in tile mode the blur wraps. A fake screen: a filled rect on its own layer, blurred, with screen or add for the glow.
+
+The list shows a thumbnail per layer (pieces cropped to their rectangle) and icons for blur, grunge and mask; the mask icon switches to painting it. In the settings, effects to add sit in one line (+ mask, + grunge, + blur); the triangle before grunge and blur folds their sliders away.
