@@ -1,4 +1,5 @@
 import type { main } from '../../wailsjs/go/models'
+import type { Selection } from './selection'
 
 export type Layout = main.Layout
 
@@ -19,10 +20,11 @@ export type Layer = {
   // The deskewed piece at photo resolution; null for adjustment layers.
   canvas: HTMLCanvasElement | null
   adjust: Adjust | null
-  // Center in texels, texels per piece pixel, quarter turns clockwise.
+  // Center in texels, texels per piece pixel across and down, quarter turns clockwise.
   x: number
   y: number
-  scale: number
+  scaleX: number
+  scaleY: number
   turns: number
   flipX: boolean
   flipY: boolean
@@ -52,7 +54,9 @@ export type Blend = (typeof blends)[number]
 
 export type Region = 'refs' | 'canvas' | 'layers'
 
-export type CanvasTool = 'move' | 'island' | 'brush' | 'eraser'
+export type CanvasTool = 'move' | 'transform' | 'island' | 'select' | 'brush' | 'eraser'
+export const selectModes = ['rect', 'lasso'] as const
+export type SelectMode = (typeof selectModes)[number]
 export type PaintTool = 'brush' | 'eraser'
 export const tips = ['round', 'square'] as const
 export type Tip = (typeof tips)[number]
@@ -84,6 +88,12 @@ export const app = $state({
   // Primary and secondary color; the right mouse button paints with the secondary.
   colors: ['#a89c88', '#3a342c'] as [string, string],
   swatches: ['#1c1a17', '#3a342c', '#5e554a', '#857a6a', '#a89c88', '#cfc6b4', '#6b4a32', '#8c6a3c', '#4a5a3a', '#3c4c5c', '#7a3a2a', '#b08a4a'],
+  selectMode: 'rect' as SelectMode,
+  // Transform corners keep the aspect; Shift while dragging does the other.
+  keepAspect: true,
+  selection: null as Selection | null,
+  // Pixels waiting to be placed into a layer; restore is the layer before a lift.
+  floating: null as { id: string; into: string; restore: Layer | null } | null,
   // The next canvas click picks a color.
   picking: false,
   status: '',

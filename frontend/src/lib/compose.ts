@@ -2,6 +2,7 @@ import { CanvasSource, Container, Graphics, RenderTexture, Sprite, Texture, type
 import { AdjustPass } from './adjust'
 import { BlendPass } from './blend'
 import { eachFace } from './uv'
+import { matrix, place } from './transform'
 import type { Layer, Layout } from './state.svelte'
 
 // Each layer is drawn into a texture of its own at texture size, transformed and
@@ -13,7 +14,8 @@ export class Composer {
   private adjustPass: AdjustPass
   // Ping-pong pair for laying the layers together.
   private acc: [RenderTexture, RenderTexture]
-  private pieces = new Map<HTMLCanvasElement, Texture>()
+  // Per piece a smooth, mipmapped texture for shrinking and a crisp one for growing.
+  private pieces = new Map<HTMLCanvasElement, { smooth?: Texture; crisp?: Texture }>()
   // The canvas of a stroke in progress, shown in place of its layer's piece.
   private live: { id: string; canvas: HTMLCanvasElement; rev: number } | null = null
   private layers = new Map<string, { rt: RenderTexture; sig: string }>()
@@ -46,13 +48,11 @@ export class Composer {
     this.masks.clear()
   }
 
-  piece(canvas: HTMLCanvasElement): Texture {
-    let tex = this.pieces.get(canvas)
-    if (!tex) {
-      tex = new Texture({ source: new CanvasSource({ resource: canvas, autoGenerateMipmaps: true }) })
-      this.pieces.set(canvas, tex)
-    }
-    return tex
+  piece(canvas: HTMLCanvasElement, crisp = false): Texture {
+    let entry = this.pieces.get(canvas)
+    if (!entry) this.pieces.set(canvas, (entry = {}))
+    if (crisp) return (entry.crisp ??= new Texture({ source: new CanvasSource({ resource: canvas, scaleMode: 'nearest' }) }))
+    return (entry.smooth ??= new Texture({ source: new CanvasSource({ resource: canvas, autoGenerateMipmaps: true }) }))
   }
 
   private entry(id: string) {
@@ -92,7 +92,9 @@ export class Composer {
   touch() {
     if (!this.live) return
     this.live.rev++
-    this.piece(this.live.canvas).source.update()
+    const entry = this.pieces.get(this.live.canvas)
+    entry?.smooth?.source.update()
+    entry?.crisp?.source.update()
   }
 
   // The layer alone, as it lands in the texture.
@@ -100,12 +102,12 @@ export class Composer {
     const live = this.live?.id === l.id ? this.live : null
     const canvas = live?.canvas ?? l.canvas!
     const size = this.target.width
-    const sig = [idOf(canvas), live?.rev, l.x, l.y, l.scale, l.turns, l.flipX, l.flipY, l.island, size, layout && idOf(layout)].join()
+    const sig = [idOf(canvas), live?.rev, l.x, l.y, l.scaleX, l.scaleY, l.turns, l.flipX, l.flipY, l.island, size, layout && idOf(layout)].join()
     const entry = this.entry(l.id)
     if (entry.sig === sig) return entry.rt
 
     const scene = new Container()
-    const sprite = new Sprite(this.piece(canvas))
+    const sprite = new Sprite(this.piece(canvas, l.scaleX >= 1 && l.scaleY >= 1))
     place(sprite, l)
     scene.addChild(sprite)
     if (l.island !== null && layout) {
@@ -167,9 +169,10 @@ export class Composer {
 
     const used = new Set(layers.map((l) => l.canvas))
     if (this.live) used.add(this.live.canvas)
-    for (const [canvas, tex] of this.pieces) {
+    for (const [canvas, entry] of this.pieces) {
       if (used.has(canvas)) continue
-      tex.destroy(true)
+      entry.smooth?.destroy(true)
+      entry.crisp?.destroy(true)
       this.pieces.delete(canvas)
     }
   }
@@ -221,25 +224,13 @@ function idOf(o: object) {
   return objectIds.get(o)
 }
 
-// Sets a sprite or frame to the layer's transform, in texels.
-export function place(node: Sprite | Graphics, l: Layer) {
-  if (node instanceof Sprite) node.anchor.set(0.5)
-  node.position.set(l.x, l.y)
-  node.rotation = (l.turns * Math.PI) / 2
-  node.scale.set(l.scale * (l.flipX ? -1 : 1), l.scale * (l.flipY ? -1 : 1))
-}
-
 // Whether a texel point hits an opaque pixel of the layer.
 export function hits(l: Layer, x: number, y: number): boolean {
   const canvas = l.canvas
   if (!canvas) return false
-  const a = (-l.turns * Math.PI) / 2
-  const dx = x - l.x
-  const dy = y - l.y
-  const rx = (dx * Math.cos(a) - dy * Math.sin(a)) / (l.scale * (l.flipX ? -1 : 1))
-  const ry = (dx * Math.sin(a) + dy * Math.cos(a)) / (l.scale * (l.flipY ? -1 : 1))
-  const px = Math.floor(rx + canvas.width / 2)
-  const py = Math.floor(ry + canvas.height / 2)
+  const p = matrix(l).inverse().transformPoint({ x, y })
+  const px = Math.floor(p.x)
+  const py = Math.floor(p.y)
   if (px < 0 || py < 0 || px >= canvas.width || py >= canvas.height) return false
   return canvas.getContext('2d')!.getImageData(px, py, 1, 1).data[3] > 0
 }

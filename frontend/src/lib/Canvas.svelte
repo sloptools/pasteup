@@ -2,13 +2,17 @@
   import { onMount } from 'svelte'
   import { Graphics, Sprite } from 'pixi.js'
   import { View } from './view'
-  import { Composer, hits, place } from './compose'
+  import { Composer, hits } from './compose'
+  import { settle, box, cursors, fit as fitBox, handleAt, handles, hit, matrix, place, resize, type Box, type Handle } from './transform'
   import { edges, eachFace, islandAt } from './uv'
   import { activeLayer, app, cloneLayer, say, type PaintTool } from './state.svelte'
   import { bridge } from './bridge.svelte'
-  import { isTexels, mergeDown, newLayer, toTexels } from './layerOps'
+  import { mergeDown, newLayer } from './layerOps'
   import { footprint, Stroke } from './paint'
   import { checkpoint } from './history.svelte'
+  import { Marquee } from './marquee'
+  import { combine, selection, type Combine } from './selection'
+  import { useComposer } from './clipboard'
 
   let el: HTMLDivElement
   let view: View
@@ -22,6 +26,10 @@
   const islandMark = new Graphics()
   const frame = new Graphics()
   const tip = new Graphics()
+  const grips = new Graphics()
+  let zoom = $state(1)
+  const marquee = new Marquee()
+  let stopAnts = () => {}
 
   const painting = $derived(app.canvasTool === 'brush' || app.canvasTool === 'eraser')
   let stroke: { layer: string; paint: Stroke } | null = null
@@ -33,13 +41,25 @@
     view.init().then(() => {
       composer = new Composer(view.pixi.renderer, app.size)
       const texture = new Sprite(composer.target)
-      view.world.addChild(checker, texture, uvLines, islandMark, frame, tip)
+      view.world.addChild(checker, texture, uvLines, islandMark, frame, marquee.node, grips, tip)
+      view.onZoom = () => (zoom = view.zoom)
+      zoom = view.zoom
+      useComposer(composer)
       listen()
+      const ants = setInterval(() => {
+        if (!app.selection) return
+        marquee.tick()
+        view.draw()
+      }, 300)
+      stopAnts = () => clearInterval(ants)
       if (import.meta.env.DEV) Object.assign(window, { composer, canvasView: view })
       ready = true
       fit()
     })
-    return () => view.pixi.destroy(true)
+    return () => {
+      stopAnts()
+      view.pixi.destroy(true)
+    }
   })
 
   export function fit() {
@@ -58,6 +78,7 @@
     if (!ready) return
     const size = app.size
     composer.resize(size)
+    if (app.selection?.size !== size) app.selection = null
     checker.clear()
     const cell = size / 16
     for (let y = 0; y < 16; y++) {
@@ -76,6 +97,41 @@
     uvLines.stroke({ width: 1, color: 0xebe8df, alpha: 0.35, pixelLine: true })
     view.draw()
   })
+
+  // The transform frame's handles, a constant size on screen.
+  $effect(() => {
+    if (!ready) return
+    grips.clear()
+    const l = activeLayer()
+    if (app.canvasTool === 'transform' && l?.canvas) {
+      const b = box(l)
+      const r = 3 / zoom
+      grips.rect(b.x, b.y, b.w, b.h).stroke({ width: 1, color: 0x7fc4af, pixelLine: true })
+      for (const h of handles) {
+        const [x, y] = handleAt(b, h)
+        grips.rect(x - r, y - r, 2 * r, 2 * r)
+      }
+      grips.fill(0x131312).stroke({ width: 1 / zoom, color: 0x7fc4af })
+    }
+    view.draw()
+  })
+
+  $effect(() => {
+    if (!ready) return
+    marquee.show(app.selection)
+    view.draw()
+  })
+
+  // Shift adds to the selection, Alt takes away; a click without a drag deselects.
+  let combining: Combine = 'replace'
+
+  function selectEnd() {
+    if (!marquee.dragging) return
+    const data = marquee.end(app.size)
+    if (data) app.selection = selection(combine(app.selection, data, combining), app.size)
+    else if (combining === 'replace') app.selection = null
+    view.draw()
+  }
 
   function compose() {
     composer.render(app.layers.map(cloneLayer), app.layout)
@@ -106,7 +162,7 @@
     if (!ready) return
     frame.clear()
     const l = activeLayer()
-    if (l?.canvas) {
+    if (l?.canvas && app.canvasTool !== 'transform') {
       place(frame, l)
       frame.rect(-l.canvas.width / 2, -l.canvas.height / 2, l.canvas.width, l.canvas.height)
       frame.stroke({ width: 1, color: 0x7fc4af, pixelLine: true })
@@ -152,13 +208,18 @@
     if (!activeLayer() && tool === 'brush') newLayer()
     const l = activeLayer()
     if (!l) return
-    if (l.adjust) return say('adjustment layers take no paint')
-    if (!isTexels(l)) {
-      toTexels(l, composer)
-      say(`${l.name} baked to texels for painting`)
-    }
+    if (!l.canvas) return say('adjustment layers take no paint')
+    if (settle(l)) say(`${l.name} redrawn at texel size for painting`)
 
-    stroke = { layer: l.id, paint: new Stroke(l.canvas!, app.colors[e.button === 2 ? 1 : 0], app.tipSize[tool], app.tip[tool], tool === 'eraser', app.paintOpacity[tool]) }
+    const paint = new Stroke(l.canvas, matrix(l).inverse(), app.size, {
+      color: app.colors[e.button === 2 ? 1 : 0],
+      tipSize: app.tipSize[tool],
+      tip: app.tip[tool],
+      erase: tool === 'eraser',
+      opacity: app.paintOpacity[tool],
+      selection: app.selection?.canvas ?? null,
+    })
+    stroke = { layer: l.id, paint }
     composer.stroke(l.id, stroke.paint.canvas)
     if (e.shiftKey && last) stroke.paint.line(last[0], last[1], x, y)
     else stroke.paint.dot(x, y)
@@ -184,6 +245,7 @@
 
   function listen() {
     let drag: { from: [number, number]; at: [number, number] } | null = null
+    let sizing: { from: Box; handle: Handle } | null = null
 
     el.addEventListener('pointerenter', () => (app.focus = 'canvas'))
     el.addEventListener('pointerdown', (e) => {
@@ -193,7 +255,13 @@
       const p = texel(e)
       if (app.picking) return pickColor(e, Math.floor(p[0]), Math.floor(p[1]))
       if (painting) return paintStart(e, Math.floor(p[0]), Math.floor(p[1]))
-      if (e.shiftKey) return pick(p)
+      if (app.canvasTool === 'select') {
+        combining = e.shiftKey ? 'add' : e.altKey ? 'subtract' : 'replace'
+        marquee.start(app.selectMode, p)
+        el.setPointerCapture(e.pointerId)
+        return
+      }
+      if (e.shiftKey && app.canvasTool !== 'transform') return pick(p)
       const l = activeLayer()
 
       if (app.canvasTool === 'island') {
@@ -203,6 +271,18 @@
         return
       }
       if (!l?.canvas) return
+      if (app.canvasTool === 'transform') {
+        const from = box(l)
+        const handle = hit(from, p[0], p[1], 5 / zoom)
+        if (!handle) return
+        if (handle !== 'inside') {
+          checkpoint()
+          sizing = { from, handle }
+          el.setPointerCapture(e.pointerId)
+          return
+        }
+      }
+      checkpoint()
       drag = { from: p, at: [l.x, l.y] }
       el.setPointerCapture(e.pointerId)
     })
@@ -217,18 +297,38 @@
         repaint()
         return
       }
+      if (marquee.dragging) {
+        marquee.move(p)
+        view.draw()
+        return
+      }
 
       const l = activeLayer()
+      if (sizing && l?.canvas) {
+        fitBox(l, resize(sizing.from, sizing.handle, p[0], p[1], app.keepAspect !== e.shiftKey))
+        return
+      }
+      if (app.canvasTool === 'transform' && l?.canvas && !drag) {
+        const h = hit(box(l), p[0], p[1], 5 / zoom)
+        el.style.cursor = !h ? '' : h === 'inside' ? 'move' : cursors[`${h.sx},${h.sy}`]
+      } else el.style.cursor = ''
       if (!drag || !l) return
-      l.x = Math.round(drag.at[0] + p[0] - drag.from[0])
-      l.y = Math.round(drag.at[1] + p[1] - drag.from[1])
+      // Whole texels from where it was, so odd-sized pieces keep their half-texel center.
+      l.x = drag.at[0] + Math.round(p[0] - drag.from[0])
+      l.y = drag.at[1] + Math.round(p[1] - drag.from[1])
     })
 
     el.addEventListener('pointerup', () => {
+      if (drag || sizing) checkpoint()
       drag = null
+      sizing = null
       paintEnd()
+      selectEnd()
     })
-    el.addEventListener('pointercancel', paintEnd)
+    el.addEventListener('pointercancel', () => {
+      paintEnd()
+      selectEnd()
+    })
     el.addEventListener('contextmenu', (e) => e.preventDefault())
     el.addEventListener('pointerleave', () => {
       hover = null
@@ -237,7 +337,7 @@
   }
 </script>
 
-<div class="canvas" class:cross={app.canvasTool === 'island' || painting || app.picking} bind:this={el}>
+<div class="canvas" class:cross={app.canvasTool === 'island' || app.canvasTool === 'select' || painting || app.picking} bind:this={el}>
   {#if hover}
     <div class="coords">{hover[0]}, {hover[1]}{hoverIsland !== null ? ` · island ${hoverIsland}` : ''}</div>
   {/if}

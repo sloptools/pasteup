@@ -1,6 +1,14 @@
-import { activeLayer, app, blends, removeLayer, tips, type PaintTool } from './state.svelte'
+import { activeLayer, app, blends, removeLayer, selectModes, tips, type CanvasTool, type PaintTool } from './state.svelte'
+import { clear, lift } from './clipboard'
+import { flip, scaleBy, turn } from './transform'
 
-// Canvas keys; true when handled. Transforms act on the active layer only.
+// Picks a tool; the transform tool first lifts a selection into a floating layer.
+export function useTool(tool: CanvasTool) {
+  if (tool === 'transform') lift()
+  app.canvasTool = tool
+}
+
+// Canvas keys; true when handled. Moves and transforms act on the active layer only.
 export function canvasKey(e: KeyboardEvent): boolean {
   switch (e.key) {
     case 'v':
@@ -9,6 +17,9 @@ export function canvasKey(e: KeyboardEvent): boolean {
     case 'i':
       app.canvasTool = 'island'
       return true
+    case 't':
+      useTool('transform')
+      return true
     case 'b':
     case 'e':
       app.canvasTool = e.key === 'b' ? 'brush' : 'eraser'
@@ -16,6 +27,13 @@ export function canvasKey(e: KeyboardEvent): boolean {
     case 'B':
     case 'E':
       return cycleTip(e.key === 'B' ? 'brush' : 'eraser')
+    case 'm':
+      app.canvasTool = 'select'
+      return true
+    case 'M':
+      if (app.canvasTool === 'select') app.selectMode = selectModes[(selectModes.indexOf(app.selectMode) + 1) % selectModes.length]
+      app.canvasTool = 'select'
+      return true
     case 'x':
       app.colors.reverse()
       return true
@@ -27,6 +45,12 @@ export function canvasKey(e: KeyboardEvent): boolean {
       if (app.canvasTool === 'move') return false
       app.canvasTool = 'move'
       return true
+  }
+
+  // With a selection, delete clears its pixels instead of the layer.
+  if ((e.key === 'Backspace' || e.key === 'Delete') && app.selection) {
+    clear()
+    return true
   }
 
   // 1 to 9 set the opacity in tens, 0 to full, as in Photoshop: the paint's
@@ -71,7 +95,7 @@ export function canvasKey(e: KeyboardEvent): boolean {
       return true
   }
 
-  if (!l.canvas || tool !== 'move') return false
+  if (!l.canvas || (tool !== 'move' && tool !== 'transform')) return false
   switch (e.key) {
     case 'ArrowLeft':
       l.x -= step
@@ -85,23 +109,21 @@ export function canvasKey(e: KeyboardEvent): boolean {
     case 'ArrowDown':
       l.y += step
       return true
+  }
+
+  if (tool !== 'transform') return false
+  switch (e.key) {
     case '[':
-      l.scale /= 1.1
-      return true
     case ']':
-      l.scale *= 1.1
+      scaleBy(l, e.key === ']' ? 1.1 : 1 / 1.1)
       return true
     case 'r':
-      l.turns = (l.turns + 1) % 4
-      return true
     case 'R':
-      l.turns = (l.turns + 3) % 4
+      turn(l, e.key === 'r' ? 1 : -1)
       return true
     case 'h':
-      l.flipX = !l.flipX
-      return true
     case 'H':
-      l.flipY = !l.flipY
+      flip(l, e.key === 'h')
       return true
   }
   return false
@@ -125,6 +147,10 @@ export function layersKey(e: KeyboardEvent): boolean {
       if (at >= 0 && to >= 0 && to < app.layers.length) app.active = app.layers[to].id
       return true
     }
+    case 'Backspace':
+    case 'Delete':
+      if (l) removeLayer(l.id)
+      return true
   }
   return canvasKey(e)
 }

@@ -1,13 +1,26 @@
 <script lang="ts">
   import Icon, { type IconName } from './Icon.svelte'
-  import { app, tips, type CanvasTool, type PaintTool } from './state.svelte'
+  import { useTool } from './keys'
+  import { app, selectModes, tips, type CanvasTool, type PaintTool, type SelectMode, type Tip } from './state.svelte'
 
-  type Tool = { id: CanvasTool; label: string; key: string; icon: IconName; variants?: PaintTool }
+  type Variants = { options: readonly string[]; get: () => string; set: (v: string) => void }
+  type Tool = { id: CanvasTool; label: string; key: string; icon: () => IconName; variants?: Variants }
+
+  const tipsOf = (tool: PaintTool): Variants => ({ options: tips, get: () => app.tip[tool], set: (v) => (app.tip[tool] = v as Tip) })
+
   const tools: Tool[] = [
-    { id: 'move', label: 'move', key: 'V', icon: 'move' },
-    { id: 'island', label: 'island', key: 'I', icon: 'island' },
-    { id: 'brush', label: 'brush', key: 'B', icon: 'brush', variants: 'brush' },
-    { id: 'eraser', label: 'eraser', key: 'E', icon: 'eraser', variants: 'eraser' },
+    { id: 'move', label: 'move', key: 'V', icon: () => 'move' },
+    { id: 'transform', label: 'transform', key: 'T', icon: () => 'transform' },
+    { id: 'island', label: 'island', key: 'I', icon: () => 'island' },
+    {
+      id: 'select',
+      label: 'select',
+      key: 'M',
+      icon: () => (app.selectMode === 'rect' ? 'select' : 'lasso'),
+      variants: { options: selectModes, get: () => app.selectMode, set: (v) => (app.selectMode = v as SelectMode) },
+    },
+    { id: 'brush', label: 'brush', key: 'B', icon: () => 'brush', variants: tipsOf('brush') },
+    { id: 'eraser', label: 'eraser', key: 'E', icon: () => 'eraser', variants: tipsOf('eraser') },
   ]
 
   // The tool whose tip shows, after a short rest on its button.
@@ -46,9 +59,9 @@
     openAt = top
   }
 
-  function choose(t: Tool, tip?: (typeof tips)[number]) {
-    if (t.variants && tip) app.tip[t.variants] = tip
-    app.canvasTool = t.id
+  function choose(t: Tool, variant?: string) {
+    if (t.variants && variant) t.variants.set(variant)
+    useTool(t.id)
     open = null
   }
 
@@ -75,7 +88,7 @@
         if (t.variants) show(t, e.currentTarget.offsetTop)
       }}
     >
-      <Icon name={t.icon} />
+      <Icon name={t.icon()} />
       {#if t.variants}<span class="more"></span>{/if}
     </button>
   {/each}
@@ -89,9 +102,10 @@
 
   {#each tools as t}
     {#if open === t.id && t.variants}
+      {@const v = t.variants}
       <div class="variants" style:top="{openAt}px">
-        {#each tips as tip}
-          <button class:on={app.tip[t.variants] === tip} onclick={() => choose(t, tip)}>{t.label} {tip}</button>
+        {#each v.options as option}
+          <button class:on={v.get() === option} onclick={() => choose(t, option)}>{t.label} {option}</button>
         {/each}
       </div>
     {/if}

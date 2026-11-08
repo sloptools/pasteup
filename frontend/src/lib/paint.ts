@@ -26,34 +26,44 @@ export function footprint(size: number, tip: Tip): Rows {
   return rows
 }
 
-const canvasLike = (c: HTMLCanvasElement) => {
+const blank = (w: number, h: number) => {
   const out = document.createElement('canvas')
-  out.width = c.width
-  out.height = c.height
+  out.width = w
+  out.height = h
   return out
 }
 
-// One stroke onto a copy of a texture-sized canvas, hard and texel exact. Dabs
-// go into a mask first, so overlapping dabs don't build up past the opacity.
+// One stroke onto a copy of a layer's piece. Dabs go into a texel mask first, so
+// overlapping dabs don't build up past the opacity; the mask then lands in the
+// piece's pixels through the layer's transform, texel exact at scale 1.
 export class Stroke {
   canvas: HTMLCanvasElement
   private mask: HTMLCanvasElement
   private paint: CanvasRenderingContext2D
+  // The mask cut to the selection, when there is one.
+  private kept: HTMLCanvasElement | null = null
   private rows: Rows
+
+  private erase: boolean
+  private opacity: number
+  private selection: HTMLCanvasElement | null
 
   constructor(
     private source: HTMLCanvasElement,
-    color: string,
+    // From texels to the piece's pixels.
+    private toPiece: DOMMatrix,
     size: number,
-    tip: Tip,
-    private erase: boolean,
-    private opacity: number,
+    o: { color: string; tipSize: number; tip: Tip; erase: boolean; opacity: number; selection: HTMLCanvasElement | null },
   ) {
-    this.canvas = canvasLike(source)
-    this.mask = canvasLike(source)
+    this.erase = o.erase
+    this.opacity = o.opacity
+    this.selection = o.selection
+    this.canvas = blank(source.width, source.height)
+    this.mask = blank(size, size)
     this.paint = this.mask.getContext('2d')!
-    this.paint.fillStyle = color
-    this.rows = footprint(size, tip)
+    this.paint.fillStyle = o.color
+    this.rows = footprint(o.tipSize, o.tip)
+    if (o.selection) this.kept = blank(size, size)
   }
 
   dot(x: number, y: number) {
@@ -62,13 +72,25 @@ export class Stroke {
 
   // Lays the mask onto the source into canvas; call after dots and lines.
   flush() {
+    let mask = this.mask
+    if (this.kept && this.selection) {
+      const k = this.kept.getContext('2d')!
+      k.globalCompositeOperation = 'copy'
+      k.drawImage(this.mask, 0, 0)
+      k.globalCompositeOperation = 'destination-in'
+      k.drawImage(this.selection, 0, 0)
+      mask = this.kept
+    }
     const ctx = this.canvas.getContext('2d', { willReadFrequently: true })!
     ctx.globalAlpha = 1
     ctx.globalCompositeOperation = 'copy'
     ctx.drawImage(this.source, 0, 0)
     ctx.globalAlpha = this.opacity
     ctx.globalCompositeOperation = this.erase ? 'destination-out' : 'source-over'
-    ctx.drawImage(this.mask, 0, 0)
+    ctx.imageSmoothingEnabled = false
+    ctx.setTransform(this.toPiece)
+    ctx.drawImage(mask, 0, 0)
+    ctx.resetTransform()
   }
 
   // Bresenham, so diagonal lines stay one texel thin.

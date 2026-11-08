@@ -5,6 +5,8 @@
   import Layers from './lib/Layers.svelte'
   import Icon from './lib/Icon.svelte'
   import { canvasKey, layersKey, refKey } from './lib/keys'
+  import { copy, cut, discard, paste, place } from './lib/clipboard'
+  import { all, invert, selection } from './lib/selection'
   import { addPaths } from './lib/photos'
   import { activeLayer, app, say, sizes } from './lib/state.svelte'
   import { bridge } from './lib/bridge.svelte'
@@ -69,6 +71,16 @@
       return
     }
     if (e.ctrlKey || e.altKey) return
+    if (app.floating && (e.key === 'Enter' || e.key === 'Escape')) {
+      e.preventDefault()
+      return e.key === 'Enter' ? place() : discard()
+    }
+    // Esc drops a selection in any tool, before anything else it would do.
+    if (e.key === 'Escape' && app.selection && app.focus !== 'refs') {
+      e.preventDefault()
+      app.selection = null
+      return
+    }
 
     let handled: boolean
     if (app.focus === 'refs' && app.refs !== 'closed') handled = refs.key(e) || refKey(e)
@@ -94,6 +106,12 @@
     else if (k === 'e' && e.shiftKey) exportPNG()
     else if (k === 'e') canvas.merge()
     else if (k === 'j') duplicate()
+    else if (k === 'c') copy(e.shiftKey)
+    else if (k === 'x') cut()
+    else if (k === 'v') paste(e.shiftKey)
+    else if (k === 'a' && !e.shiftKey) app.selection = selection(all(app.size), app.size)
+    else if (k === 'd') app.selection = null
+    else if (k === 'i' && e.shiftKey) app.selection = selection(invert(app.selection, app.size), app.size)
     else if (k === 'a' && e.shiftKey) addAdjust()
     else if (k === 'n' && e.shiftKey) newLayer()
     else if (e.code === 'BracketRight') move(1)
@@ -162,6 +180,12 @@
       <button class="icon" title="Show or hide the refs (Tab)" onclick={() => toggleRefs(false)}><Icon name="panel" size={11} /></button>
       <span class="caps">canvas</span>
       <ToolOptions />
+      {#if app.selection}
+        <span class="selected mono">
+          selection {app.selection.w}×{app.selection.h}
+          <button class="icon" title="Deselect (Esc, ⌘D)" onclick={() => (app.selection = null)}><Icon name="x" size={11} /></button>
+        </span>
+      {/if}
     </div>
     <div class="work">
       <div class="view"><Canvas bind:this={canvas} /></div>
@@ -267,6 +291,14 @@
     flex: 1;
     min-height: 0;
     min-width: 0;
+  }
+  .selected {
+    flex: none;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font: 12px var(--mono);
+    color: var(--dim);
   }
   .work {
     flex: 1;
