@@ -2,6 +2,7 @@ import { CanvasSource, Container, Graphics, RenderTexture, Sprite, Texture, type
 import { AdjustPass } from './adjust'
 import { BlendPass } from './blend'
 import { BlurPass } from './blur'
+import { FinishPass, type Finish } from './finish'
 import { eraser, grunge } from './grunge.svelte'
 import { eachFace } from './uv'
 import { box, exact, matrix, place, raster } from './transform'
@@ -15,6 +16,7 @@ export class Composer {
   private pass: BlendPass
   private adjustPass: AdjustPass
   private blurPass: BlurPass
+  private finishPass: FinishPass
   // Ping-pong pair for laying the layers together.
   private acc: [RenderTexture, RenderTexture]
   // Pieces land one pixel per texel (see raster), so their textures are always crisp.
@@ -36,6 +38,7 @@ export class Composer {
     this.pass = new BlendPass(renderer)
     this.adjustPass = new AdjustPass(renderer)
     this.blurPass = new BlurPass(renderer)
+    this.finishPass = new FinishPass(renderer)
   }
 
   private texture(size: number) {
@@ -273,13 +276,25 @@ export class Composer {
     return '#' + c.map((v) => v.toString(16).padStart(2, '0')).join('')
   }
 
-  // The given layers laid together, as a canvas at texture size.
-  flatten(layers: Layer[], layout: Layout | null): HTMLCanvasElement {
+  // The given layers laid together, as a canvas at texture size, finished if asked.
+  flatten(layers: Layer[], layout: Layout | null, finish?: Finish): HTMLCanvasElement {
     const rt = this.texture(this.target.width)
     this.render(layers, layout, rt)
+    if (finish) {
+      const done = this.texture(rt.width)
+      this.finishPass.draw(rt, finish, done)
+      rt.destroy(true)
+      const canvas = this.canvas(done)
+      done.destroy(true)
+      return canvas
+    }
     const canvas = this.canvas(rt)
     rt.destroy(true)
     return canvas
+  }
+
+  finish(source: RenderTexture, f: Finish, target: RenderTexture) {
+    this.finishPass.draw(source, f, target)
   }
 
   png(): string {

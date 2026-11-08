@@ -2,11 +2,12 @@
   import { onMount, untrack } from 'svelte'
   import { Container, Graphics, RenderTexture, Sprite } from 'pixi.js'
   import { composed, gray, grayOf, present } from './channels'
+  import { autoPalette } from './palette'
   import { View } from './view'
   import { Composer, hits } from './compose'
   import { settle, box, cursors, fit as fitBox, handleAt, handles, hit, matrix, place, resize, type Box, type Handle } from './transform'
   import { edges, eachFace, islandAt, islandMask } from './uv'
-  import { activeLayer, app, colorTools, masking, say, wraps, type Channel, type ColorTool, type PaintTool } from './state.svelte'
+  import { activeLayer, app, colorTools, finishing, masking, paletteColors, say, wraps, type Channel, type ColorTool, type PaintTool } from './state.svelte'
   import { bridge } from './bridge.svelte'
   import { addMask, mergeDown, newLayer } from './layerOps'
   import { footprint, Stroke } from './paint'
@@ -28,6 +29,7 @@
 
   const checker = new Graphics()
   let texture: Sprite
+  let finished: RenderTexture | null = null
   const onionSprite = new Sprite()
   let onionTarget: RenderTexture | null = null
   // The texture again around itself, in tile mode.
@@ -82,6 +84,20 @@
     view?.fit(0, 0, app.size, app.size)
   }
 
+  const finishSettings = () => ({ colors: paletteColors(), dither: app.finish.dither, sharpen: app.finish.sharpen })
+
+  // The auto palette follows the color once edits rest; set again only when it changed.
+  let paletteTimer = 0
+  function schedulePalette() {
+    if (app.finish.mode !== 'auto') return
+    void app.finish.colors
+    clearTimeout(paletteTimer)
+    paletteTimer = window.setTimeout(() => {
+      const colors = autoPalette(composer.flatten(composed('color'), app.layout), app.finish.colors, $state.snapshot(app.autoPalette))
+      if (colors.join() !== app.autoPalette.join()) app.autoPalette = colors
+    }, 400)
+  }
+
   // Every channel as it is written, color with the AO multiplied in unless it is kept apart.
   export function flats(): Partial<Record<Channel, HTMLCanvasElement>> {
     const out: Partial<Record<Channel, HTMLCanvasElement>> = {}
@@ -90,7 +106,7 @@
       if (ch === 'ao' && app.bakeAO) continue
       const layers = composed(ch)
       if (ch === 'color' && ao && app.bakeAO) layers.push({ name: 'ao', ...aoLayer(ao) })
-      out[ch] = ch === 'ao' && ao ? ao : composer.flatten(layers, app.layout)
+      out[ch] = ch === 'ao' && ao ? ao : composer.flatten(layers, app.layout, ch === 'color' && finishing() ? finishSettings() : undefined)
     }
     return out
   }
@@ -210,6 +226,19 @@
     current()
     composer.wrap = wraps(app.tile)
     composer.render(composed(app.channel), app.layout)
+    // The color shows finished, as it will be written.
+    let shown = composer.target
+    if (app.channel === 'color' && finishing()) {
+      if (finished?.width !== app.size) {
+        finished?.destroy(true)
+        finished = RenderTexture.create({ width: app.size, height: app.size, scaleMode: 'nearest' })
+      }
+      composer.finish(composer.target, finishSettings(), finished)
+      shown = finished
+    }
+    texture.texture = shown
+    for (const n of neighbors.children as Sprite[]) n.texture = shown
+    schedulePalette()
     // The onion: another channel faintly on top, as a reference.
     const onion = app.onion.channel
     onionSprite.visible = !!onion && onion !== app.channel

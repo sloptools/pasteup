@@ -14,13 +14,19 @@ export function ExportPNG(arg1:string,arg2:string,arg3:Record<string, string>):P
 
 export function GrungeMaps():Promise<Array<string>>;
 
+export function LospecPalette(arg1:string):Promise<main.Palette>;
+
 export function OpenDialog():Promise<string>;
 
 export function OpenModel(arg1:string):Promise<main.Layout>;
 
+export function OpenPalette():Promise<main.Palette>;
+
 export function OpenPhotos():Promise<Array<string>>;
 
 export function ProjectManifest(arg1:string):Promise<string>;
+
+export function QuakePalette():Promise<main.Palette>;
 
 export function SaveDialog(arg1:string,arg2:string):Promise<string>;
 

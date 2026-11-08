@@ -134,6 +134,7 @@
     })
 
     let sized = false
+    if (import.meta.env.DEV) Object.assign(window, { orbit })
     const resize = new ResizeObserver(() => {
       const w = el.clientWidth
       const h = el.clientHeight

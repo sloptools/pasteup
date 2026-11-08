@@ -103,6 +103,11 @@ export const app = $state({
   onion: { channel: null as Channel | null, opacity: 0.3 },
   // AO multiplies into the color on export and in Blender.
   bakeAO: true,
+  // The crunch over the color: a palette (none, computed, or one of the project's),
+  // ordered dither and sharpen.
+  finish: { mode: 'off' as 'off' | 'auto' | 'fixed', colors: 64, palette: null as string | null, dither: 0, sharpen: 0 },
+  palettes: [] as { name: string; colors: string[] }[],
+  autoPalette: [] as string[],
   // Goes up with each change of the texture, for views that follow it.
   revision: 0,
   // What the ref area shows: the photos, or the model in 3D.
@@ -192,3 +197,13 @@ export const cloneLayer = (l: Layer): Layer => ({ ...l, adjust: l.adjust && { ..
 export const paintable = (l: Layer) => masking() || !!l.canvas
 
 export const masking = () => app.maskOf !== null && app.maskOf === app.active
+
+// The palette the finish maps to: computed, chosen, or none.
+export function paletteColors(): string[] {
+  const f = app.finish
+  if (f.mode === 'auto') return app.autoPalette
+  if (f.mode === 'fixed') return app.palettes.find((p) => p.name === f.palette)?.colors ?? []
+  return []
+}
+
+export const finishing = () => paletteColors().length > 0 || app.finish.dither > 0 || app.finish.sharpen > 0

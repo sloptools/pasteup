@@ -130,14 +130,12 @@
     gap: 4px;
   }
   .compact .value {
-    width: auto;
-    min-width: 30px;
+    width: var(--value-width, 40px);
     border-color: var(--line);
     background: var(--bg);
     cursor: ew-resize;
   }
   .compact input.value {
-    width: 44px;
     cursor: text;
   }
   .field {

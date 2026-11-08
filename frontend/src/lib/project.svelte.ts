@@ -17,6 +17,9 @@ type Manifest = {
   active: string | null
   channels: Partial<Record<Channel, { layers: LayerJson[] }>>
   bakeAO?: boolean
+  finish?: typeof app.finish
+  palettes?: typeof app.palettes
+  autoPalette?: string[]
   photos: { id: string; name: string; entry: string; x: number; y: number }[]
 }
 
@@ -29,7 +32,7 @@ const photoEntries = new Map<string, string>()
 // The file the entries are in.
 let entriesIn: { path: string; names: Set<string> } | null = null
 
-const changes = () => app.size + present().map((ch) => ch + layersKey(layersOf(ch))).join() + app.bakeAO + JSON.stringify(app.photos.map((p) => [p.id, p.x, p.y])) + app.tile + app.swatches.join() + (app.layout?.path ?? '') + (app.layout?.uvs.length ?? 0)
+const changes = () => app.size + present().map((ch) => ch + layersKey(layersOf(ch))).join() + app.bakeAO + JSON.stringify([app.finish, app.palettes]) + JSON.stringify(app.photos.map((p) => [p.id, p.x, p.y])) + app.tile + app.swatches.join() + (app.layout?.path ?? '') + (app.layout?.uvs.length ?? 0)
 
 export const dirty = () => changes() !== project.saved
 
@@ -93,6 +96,9 @@ async function write(path: string) {
     active: app.channel === 'color' ? app.active : (app.stacks.color?.active ?? null),
     channels: stacks,
     bakeAO: app.bakeAO,
+    finish: $state.snapshot(app.finish),
+    palettes: $state.snapshot(app.palettes),
+    autoPalette: [...app.autoPalette],
     photos,
   }
   await SaveProject({ path, manifest: JSON.stringify(manifest), files, disk, keep, from: entriesIn?.path ?? '' })
@@ -170,6 +176,9 @@ export async function open(path: string) {
       stacks,
       onion: { channel: null, opacity: 0.3 },
       bakeAO: m.bakeAO ?? true,
+      finish: m.finish ?? { mode: 'off', colors: 64, palette: null, dither: 0, sharpen: 0 },
+      palettes: m.palettes ?? [],
+      autoPalette: m.autoPalette ?? [],
       photos,
       active: m.active,
       selection: null,

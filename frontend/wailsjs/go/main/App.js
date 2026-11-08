@@ -26,6 +26,10 @@ export function GrungeMaps() {
   return window['go']['main']['App']['GrungeMaps']();
 }
 
+export function LospecPalette(arg1) {
+  return window['go']['main']['App']['LospecPalette'](arg1);
+}
+
 export function OpenDialog() {
   return window['go']['main']['App']['OpenDialog']();
 }
@@ -34,12 +38,20 @@ export function OpenModel(arg1) {
   return window['go']['main']['App']['OpenModel'](arg1);
 }
 
+export function OpenPalette() {
+  return window['go']['main']['App']['OpenPalette']();
+}
+
 export function OpenPhotos() {
   return window['go']['main']['App']['OpenPhotos']();
 }
 
 export function ProjectManifest(arg1) {
   return window['go']['main']['App']['ProjectManifest'](arg1);
+}
+
+export function QuakePalette() {
+  return window['go']['main']['App']['QuakePalette']();
 }
 
 export function SaveDialog(arg1, arg2) {

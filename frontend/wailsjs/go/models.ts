@@ -20,6 +20,20 @@ export namespace main {
 	        this.positions = source["positions"];
 	    }
 	}
+	export class Palette {
+	    name: string;
+	    colors: string[];
+	
+	    static createFrom(source: any = {}) {
+	        return new Palette(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.colors = source["colors"];
+	    }
+	}
 	export class SaveRequest {
 	    path: string;
 	    manifest: string;

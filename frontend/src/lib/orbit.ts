@@ -98,14 +98,26 @@ export class Orbit {
     const right = new THREE.Vector3().setFromMatrixColumn(this.camera.matrixWorld, 0)
     const up = new THREE.Vector3().setFromMatrixColumn(this.camera.matrixWorld, 1)
     this.goal.target.addScaledVector(right, dx * perPixel).addScaledVector(up, -dy * perPixel)
+    this.keepNear()
   }
 
-  // Zooms so the point under the cursor stays put.
+  // Zooming in heads for the point under the cursor; zooming out drifts back to
+  // the model's center, so the pivot never wanders off the model.
   zoomAt(x: number, y: number, factor: number) {
     const dist = THREE.MathUtils.clamp(this.goal.dist * factor, this.radius * 0.05, this.radius * 30)
-    const hit = this.pick(x, y)
-    if (hit) this.goal.target.lerp(hit, 1 - dist / this.goal.dist)
+    const step = 1 - dist / this.goal.dist
+    if (step > 0) {
+      const hit = this.pick(x, y)
+      if (hit) this.goal.target.lerp(hit, step)
+    } else this.goal.target.lerp(this.center, Math.min(1, -step))
     this.goal.dist = dist
+    this.keepNear()
+  }
+
+  // The pivot stays within the model's sphere, so orbiting always turns round the model.
+  private keepNear() {
+    const off = this.goal.target.clone().sub(this.center)
+    if (off.length() > this.radius) this.goal.target.copy(this.center).add(off.setLength(this.radius))
   }
 
   frame(box: THREE.Box3) {
