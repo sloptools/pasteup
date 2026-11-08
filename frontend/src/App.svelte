@@ -14,9 +14,10 @@
   import { addAdjust, duplicate, move, newLayer, setSize } from './lib/layerOps'
   import Tools from './lib/Tools.svelte'
   import { loadNames } from './lib/grunge.svelte'
+  import { dirty, markClean, open, openAny, project, projectName, save } from './lib/project.svelte'
   import ColorPanel from './lib/ColorPanel.svelte'
   import ToolOptions from './lib/ToolOptions.svelte'
-  import { ExportPNG, OpenModel } from '../wailsjs/go/main/App'
+  import { ExportPNG, OpenModel, SetDirty } from '../wailsjs/go/main/App'
   import { OnFileDrop } from '../wailsjs/runtime/runtime'
 
   let canvas: Canvas
@@ -110,7 +111,8 @@
   function metaKey(e: KeyboardEvent): boolean {
     const k = e.key.toLowerCase()
     if (k === 'z') return e.shiftKey ? redo() || true : undo() || true
-    if (k === 'o') openModel()
+    if (k === 's') save(e.shiftKey)
+    else if (k === 'o') openAny(openModel)
     else if (k === 'e' && e.shiftKey) exportPNG()
     else if (k === 'e') canvas.merge()
     else if (k === 'j') duplicate()
@@ -134,12 +136,20 @@
     return true
   }
 
+  $effect(() => {
+    const on = dirty()
+    if (wails) SetDirty(on)
+  })
+
   onMount(() => {
     track()
     loadNames()
+    markClean()
     if (!wails) return
     bridge.start(() => canvas.png())
     OnFileDrop((x, y, paths) => {
+      const projectFile = paths.find((p) => p.toLowerCase().endsWith('.pasteup'))
+      if (projectFile) return open(projectFile)
       const glb = paths.find((p) => p.toLowerCase().endsWith('.glb'))
       if (glb) return openModel(glb)
       if (app.refs === 'closed') app.refs = 'open'
@@ -152,9 +162,10 @@
 
 <div class="shell refs-{app.refs}">
   <header>
-    <span class="title">pasteup</span>
-    <span class="model mono">{app.layout?.name ?? 'no model'}</span>
-    <button class="text-button" title="Open a GLB (⌘O)" onclick={() => openModel()}>open model</button>
+    <span class="title" title={project.path ?? 'not saved yet'}>{projectName()}{#if dirty()}<span class="unsaved" title="unsaved changes">●</span>{/if}</span>
+    <button class="text-button" title="Open a project or a model (⌘O)" onclick={() => openAny(openModel)}>open</button>
+    <button class="text-button" title="Save (⌘S), save as (⌘⇧S)" onclick={() => save()}>save</button>
+    <span class="model mono" title="The model whose UVs show">{app.layout?.name ?? 'no model'}</span>
     {#if app.blend}
       <span class="blender mono" class:live={bridge.live}>
         <span class="dot"></span>blender {bridge.live ? 'live' : 'offline'}
@@ -251,6 +262,12 @@
     background: var(--panel);
     border-bottom: 1px solid var(--line);
     --wails-draggable: drag;
+  }
+  .unsaved {
+    margin-left: 6px;
+    font-size: 9px;
+    color: var(--dim);
+    vertical-align: 2px;
   }
   .title {
     font-weight: 600;

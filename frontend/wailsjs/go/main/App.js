@@ -14,6 +14,10 @@ export function BridgeTexture(arg1, arg2) {
   return window['go']['main']['App']['BridgeTexture'](arg1, arg2);
 }
 
+export function Confirm(arg1, arg2, arg3) {
+  return window['go']['main']['App']['Confirm'](arg1, arg2, arg3);
+}
+
 export function ExportPNG(arg1, arg2, arg3) {
   return window['go']['main']['App']['ExportPNG'](arg1, arg2, arg3);
 }
@@ -22,10 +26,30 @@ export function GrungeMaps() {
   return window['go']['main']['App']['GrungeMaps']();
 }
 
+export function OpenDialog() {
+  return window['go']['main']['App']['OpenDialog']();
+}
+
 export function OpenModel(arg1) {
   return window['go']['main']['App']['OpenModel'](arg1);
 }
 
 export function OpenPhotos() {
   return window['go']['main']['App']['OpenPhotos']();
+}
+
+export function ProjectManifest(arg1) {
+  return window['go']['main']['App']['ProjectManifest'](arg1);
+}
+
+export function SaveDialog(arg1, arg2) {
+  return window['go']['main']['App']['SaveDialog'](arg1, arg2);
+}
+
+export function SaveProject(arg1) {
+  return window['go']['main']['App']['SaveProject'](arg1);
+}
+
+export function SetDirty(arg1) {
+  return window['go']['main']['App']['SetDirty'](arg1);
 }

@@ -8,10 +8,22 @@ export function BridgeRequestSync(arg1:string):Promise<void>;
 
 export function BridgeTexture(arg1:string,arg2:string):Promise<void>;
 
+export function Confirm(arg1:string,arg2:string,arg3:string):Promise<boolean>;
+
 export function ExportPNG(arg1:string,arg2:string,arg3:string):Promise<string>;
 
 export function GrungeMaps():Promise<Array<string>>;
 
+export function OpenDialog():Promise<string>;
+
 export function OpenModel(arg1:string):Promise<main.Layout>;
 
 export function OpenPhotos():Promise<Array<string>>;
+
+export function ProjectManifest(arg1:string):Promise<string>;
+
+export function SaveDialog(arg1:string,arg2:string):Promise<string>;
+
+export function SaveProject(arg1:main.SaveRequest):Promise<void>;
+
+export function SetDirty(arg1:boolean):Promise<void>;

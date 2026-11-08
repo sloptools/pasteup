@@ -84,3 +84,16 @@ export function redo() {
   restore(s)
   return true
 }
+
+// What undo tracks, as a string: changes when the layers or the size do.
+export const stateKey = () => key(app.layers, app.size)
+
+// Starts undo over from what is there now, after opening a project.
+export function resetHistory() {
+  clearTimeout(timer)
+  timer = 0
+  past = []
+  future = []
+  last = { layers: copy(app.layers), active: app.active, size: app.size }
+  lastKey = key(last.layers, last.size)
+}

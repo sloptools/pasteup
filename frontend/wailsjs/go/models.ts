@@ -18,6 +18,28 @@ export namespace main {
 	        this.islands = source["islands"];
 	    }
 	}
+	export class SaveRequest {
+	    path: string;
+	    manifest: string;
+	    files: Record<string, string>;
+	    disk: Record<string, string>;
+	    keep: string[];
+	    from: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new SaveRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.path = source["path"];
+	        this.manifest = source["manifest"];
+	        this.files = source["files"];
+	        this.disk = source["disk"];
+	        this.keep = source["keep"];
+	        this.from = source["from"];
+	    }
+	}
 
 }
 

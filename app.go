@@ -112,9 +112,13 @@ func (a *App) GrungeMaps() []string {
 	return grunge.Names()
 }
 
-// middleware serves dropped photos and the grunge maps, which are too large for bindings.
+// middleware serves dropped photos, project entries and the grunge maps, which are too large for bindings.
 func (a *App) middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/project" {
+			serveEntry(w, r)
+			return
+		}
 		if r.URL.Path == "/grunge" {
 			data, err := grunge.PNG(r.URL.Query().Get("name"))
 			if err != nil {
