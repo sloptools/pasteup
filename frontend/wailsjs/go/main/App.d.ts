@@ -12,6 +12,8 @@ export function BuiltinPalettes():Promise<Array<main.Palette>>;
 
 export function Confirm(arg1:string,arg2:string,arg3:string):Promise<boolean>;
 
+export function DiscardRecovery(arg1:string):Promise<void>;
+
 export function ExportPNG(arg1:string,arg2:string,arg3:Record<string, string>):Promise<string>;
 
 export function GrungeMaps():Promise<Array<string>>;
@@ -28,8 +30,14 @@ export function OpenPhotos():Promise<Array<string>>;
 
 export function ProjectManifest(arg1:string):Promise<string>;
 
+export function Recovery():Promise<Array<main.Recovered>>;
+
+export function RecoveryPath():Promise<string>;
+
 export function SaveDialog(arg1:string,arg2:string):Promise<string>;
 
 export function SaveProject(arg1:main.SaveRequest):Promise<void>;
+
+export function SaveRecovery(arg1:main.SaveRequest):Promise<void>;
 
 export function SetDirty(arg1:boolean):Promise<void>;

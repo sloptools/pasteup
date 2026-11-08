@@ -1,4 +1,4 @@
-import { Confirm, OpenDialog, ProjectManifest, SaveDialog, SaveProject } from '../../wailsjs/go/main/App'
+import { Confirm, DiscardRecovery, OpenDialog, ProjectManifest, Recovery, RecoveryPath, SaveDialog, SaveProject, SaveRecovery } from '../../wailsjs/go/main/App'
 import { layersKey, resetHistory } from './history.svelte'
 import { channels, app, newId, say, type Channel, type Layer, type Layout, type Photo, type Texture, type Tile } from './state.svelte'
 import { blank, setTextures, stateOf, type TextureState } from './textures.svelte'
@@ -24,7 +24,8 @@ type Shared = {
   autoPalette?: string[]
   photos: { id: string; name: string; entry: string; x: number; y: number }[]
 }
-type Manifest = Shared & { version: 2; textures: TextureJson[]; texture: string }
+// origin: the project a recovery file holds unsaved changes of.
+type Manifest = Shared & { version: 2; textures: TextureJson[]; texture: string; origin?: string | null }
 // Before textures: one, its fields at the top.
 type ManifestV1 = Shared & Omit<TextureJson, keyof Texture> & { version: 1 }
 
@@ -32,14 +33,21 @@ type ManifestV1 = Shared & Omit<TextureJson, keyof Texture> & { version: 1 }
 const stacksOf = (s: TextureState) => channels.filter((ch) => ch === 'color' || ch === s.channel || s.stacks[ch])
 const layersIn = (s: TextureState, ch: Channel) => (ch === s.channel ? s.layers : (s.stacks[ch]?.layers ?? []))
 
-export const project = $state({ path: null as string | null, saved: '' })
+export const project = $state({
+  path: null as string | null,
+  saved: '',
+  // Sessions left unsaved, newest first, offered for restoring.
+  recovered: [] as { path: string; modified: string }[],
+})
 
 // Entry names of pieces and photos, kept across saves: pieces never change in
 // place, so one already in the file is copied over instead of written again.
 const pieceEntries = new WeakMap<HTMLCanvasElement, string>()
 const photoEntries = new Map<string, string>()
-// The file the entries are in.
-let entriesIn: { path: string; names: Set<string> } | null = null
+type Entries = { path: string; names: Set<string> }
+// The file the entries are in, and the recovery file's.
+let entriesIn: Entries | null = null
+let recoveryIn: Entries | null = null
 
 function textureKey(t: Texture) {
   const s = stateOf(t)
@@ -67,12 +75,13 @@ function imageCanvas(img: HTMLImageElement) {
   return c
 }
 
-async function write(path: string) {
+// The project as a save request: entries already in the old file are kept from it.
+function pack(path: string, old: Entries | null) {
   const files: Record<string, string> = {}
   const disk: Record<string, string> = {}
   const keep: string[] = []
   const names = new Set<string>()
-  const kept = (name: string) => entriesIn?.names.has(name)
+  const kept = (name: string) => old?.names.has(name)
 
   const piece = (c: HTMLCanvasElement | null) => {
     if (!c) return null
@@ -123,12 +132,70 @@ async function write(path: string) {
     palettes: $state.snapshot(app.palettes),
     autoPalette: [...app.autoPalette],
     photos,
+    origin: project.path,
   }
-  await SaveProject({ path, manifest: JSON.stringify(manifest), files, disk, keep, from: entriesIn?.path ?? '' })
+  return { request: { path, manifest: JSON.stringify(manifest), files, disk, keep, from: old?.path ?? '' }, names }
+}
+
+async function write(path: string) {
+  const { request, names } = pack(path, entriesIn)
+  await SaveProject(request)
   entriesIn = { path, names }
   project.path = path
   markClean()
   say(`saved ${projectName()}`)
+  if (restored) DiscardRecovery(restored)
+  restored = null
+}
+
+// Unsaved changes go to the recovery file once they rest, so a session ended
+// without quitting (a crash, the terminal) loses nothing.
+let recoveryTimer = 0
+// The recovery file the project came from, removed once saved.
+let restored: string | null = null
+
+export function autosave() {
+  $effect.root(() => {
+    $effect(() => {
+      const unsaved = dirty()
+      clearTimeout(recoveryTimer)
+      if (unsaved) recoveryTimer = window.setTimeout(writeRecovery, 5000)
+      else if (recoveryIn) {
+        DiscardRecovery('')
+        recoveryIn = null
+      }
+    })
+  })
+}
+
+async function writeRecovery() {
+  try {
+    const path = recoveryIn?.path ?? (await RecoveryPath())
+    if (!path) return
+    const { request, names } = pack(path, recoveryIn ?? entriesIn)
+    await SaveRecovery(request)
+    recoveryIn = { path, names }
+  } catch (e) {
+    say(`could not keep unsaved changes: ${e}`)
+  }
+}
+
+export async function checkRecovery() {
+  project.recovered = await Recovery()
+}
+
+export async function restoreRecovered() {
+  const r = project.recovered[0]
+  if (!r || !(await open(r.path, true))) return
+  project.recovered = project.recovered.slice(1)
+  restored = r.path
+}
+
+export function discardRecovered() {
+  const r = project.recovered[0]
+  if (!r) return
+  DiscardRecovery(r.path)
+  project.recovered = project.recovered.slice(1)
 }
 
 export async function save(as = false) {
@@ -154,7 +221,9 @@ function load(url: string): Promise<HTMLImageElement> {
   })
 }
 
-export async function open(path: string) {
+// With recovered, the file holds unsaved changes of another project: they open
+// unsaved, and saving goes to that project.
+export async function open(path: string, recovered = false) {
   if (dirty() && !(await Confirm('Unsaved changes', `Open ${path.replace(/^.*\//, '')} and drop the changes?`, 'Open'))) return
   try {
     const m = upgrade(JSON.parse(await ProjectManifest(path)))
@@ -208,9 +277,15 @@ export async function open(path: string) {
     project.path = path
     resetHistory()
     markClean()
-    say(`opened ${projectName()}`)
+    if (recovered) {
+      project.path = m.origin ?? null
+      project.saved = ''
+    }
+    say(`${recovered ? 'restored' : 'opened'} ${projectName()}`)
+    return true
   } catch (e) {
     say(`could not open: ${e}`)
+    return false
   }
 }
 

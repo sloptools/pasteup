@@ -34,6 +34,20 @@ export namespace main {
 	        this.colors = source["colors"];
 	    }
 	}
+	export class Recovered {
+	    path: string;
+	    modified: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new Recovered(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.path = source["path"];
+	        this.modified = source["modified"];
+	    }
+	}
 	export class SaveRequest {
 	    path: string;
 	    manifest: string;

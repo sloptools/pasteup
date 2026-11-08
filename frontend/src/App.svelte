@@ -18,7 +18,7 @@
   import Help from './lib/Help.svelte'
   import ModelView from './lib/ModelView.svelte'
   import { loadNames } from './lib/grunge.svelte'
-  import { dirty, markClean, open, openAny, project, projectName, save } from './lib/project.svelte'
+  import { autosave, checkRecovery, dirty, discardRecovered, markClean, open, openAny, project, projectName, restoreRecovered, save } from './lib/project.svelte'
   import ColorPanel from './lib/ColorPanel.svelte'
   import ToolOptions from './lib/ToolOptions.svelte'
   import { ExportPNG, OpenModel, SetDirty } from '../wailsjs/go/main/App'
@@ -184,6 +184,8 @@
     loadNames()
     markClean()
     if (!wails) return
+    autosave()
+    checkRecovery()
     bridge.start(() => canvas.pngs() as Record<string, string>)
     OnFileDrop((x, y, paths) => {
       const projectFile = paths.find((p) => p.toLowerCase().endsWith('.pasteup'))
@@ -219,6 +221,11 @@
         <span class="unknown mono">{app.unknown.object}: not in pasteup</span>
         <button class="text-button" title="Texture this object's material in pasteup" onclick={() => bridge.requestSync(app.unknown!.material || app.unknown!.object)}>add</button>
       {/if}
+    {/if}
+    {#if project.recovered.length}
+      <span class="recovered mono" title="pasteup ended with unsaved changes; restore opens them unsaved, to save into their project">unsaved session from {project.recovered[0].modified}{project.recovered.length > 1 ? ` (+${project.recovered.length - 1})` : ''}</span>
+      <button class="text-button" onclick={restoreRecovered}>restore</button>
+      <button class="text-button" title="Delete the unsaved session" onclick={discardRecovered}>discard</button>
     {/if}
     <div class="spacer"></div>
     <span class="tile-label mono">tile</span>
@@ -348,6 +355,10 @@
     color: var(--fg);
     font: 12px var(--mono);
     outline: none;
+  }
+  .recovered {
+    font: 12px var(--mono);
+    color: var(--accent);
   }
   .unknown {
     font: 12px var(--mono);

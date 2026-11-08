@@ -2,6 +2,7 @@ import { BridgeConnected, BridgeRequestSync, BridgeTexture } from '../../wailsjs
 import { EventsOn } from '../../wailsjs/runtime/runtime'
 import { addLayer, app, say, sizes, type Channel, type Layout } from './state.svelte'
 import { readBack } from './readback'
+import { resetHistory } from './history.svelte'
 import { addTexture, blank, current, empty, stateOf, switchTo, textureFor } from './textures.svelte'
 
 function hash(s: string): string {
@@ -93,7 +94,11 @@ class Bridge {
     app.layout = s.layout
     app.blend = s.blend
     if (app.unknown?.material === s.material || app.unknown?.object === s.material) app.unknown = null
-    if (fresh) await importImages(t.files)
+    if (fresh) {
+      await importImages(t.files)
+      // The material's images are where the texture starts; undo doesn't go back past them.
+      resetHistory()
+    }
     this.sent = ''
     say(`synced ${s.material} from blender: ${s.layout.uvs.length / 6} faces`)
     this.changed(true)

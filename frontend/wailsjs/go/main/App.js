@@ -22,6 +22,10 @@ export function Confirm(arg1, arg2, arg3) {
   return window['go']['main']['App']['Confirm'](arg1, arg2, arg3);
 }
 
+export function DiscardRecovery(arg1) {
+  return window['go']['main']['App']['DiscardRecovery'](arg1);
+}
+
 export function ExportPNG(arg1, arg2, arg3) {
   return window['go']['main']['App']['ExportPNG'](arg1, arg2, arg3);
 }
@@ -54,12 +58,24 @@ export function ProjectManifest(arg1) {
   return window['go']['main']['App']['ProjectManifest'](arg1);
 }
 
+export function Recovery() {
+  return window['go']['main']['App']['Recovery']();
+}
+
+export function RecoveryPath() {
+  return window['go']['main']['App']['RecoveryPath']();
+}
+
 export function SaveDialog(arg1, arg2) {
   return window['go']['main']['App']['SaveDialog'](arg1, arg2);
 }
 
 export function SaveProject(arg1) {
   return window['go']['main']['App']['SaveProject'](arg1);
+}
+
+export function SaveRecovery(arg1) {
+  return window['go']['main']['App']['SaveRecovery'](arg1);
 }
 
 export function SetDirty(arg1) {

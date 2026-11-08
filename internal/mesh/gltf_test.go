@@ -15,10 +15,10 @@ func glb(t *testing.T) []byte {
 		binary.Write(&bin, binary.LittleEndian, math.Float32bits(f))
 	}
 	doc := map[string]any{
-		"scene":  0,
-		"scenes": []any{map[string]any{"nodes": []int{0}}},
-		"nodes":  []any{map[string]any{"name": "box", "mesh": 0, "translation": []float64{1, 2, 3}, "scale": []float64{2, 2, 2}}},
-		"meshes": []any{map[string]any{"primitives": []any{map[string]any{"attributes": map[string]int{"POSITION": 0, "TEXCOORD_0": 1}, "material": 0}}}},
+		"scene":     0,
+		"scenes":    []any{map[string]any{"nodes": []int{0}}},
+		"nodes":     []any{map[string]any{"name": "box", "mesh": 0, "translation": []float64{1, 2, 3}, "scale": []float64{2, 2, 2}}},
+		"meshes":    []any{map[string]any{"primitives": []any{map[string]any{"attributes": map[string]int{"POSITION": 0, "TEXCOORD_0": 1}, "material": 0}}}},
 		"materials": []any{map[string]any{"name": "wood"}},
 		"accessors": []any{
 			map[string]any{"bufferView": 0, "componentType": 5126, "count": 3, "type": "VEC3"},

@@ -225,5 +225,10 @@ func (a *App) beforeClose(ctx context.Context) bool {
 		DefaultButton: "Cancel",
 		CancelButton:  "Cancel",
 	})
-	return err != nil || answer != "Quit"
+	if err != nil || answer != "Quit" {
+		return true
+	}
+	// Quitting without saving drops the changes on purpose, so nothing to recover.
+	a.DiscardRecovery("")
+	return false
 }
