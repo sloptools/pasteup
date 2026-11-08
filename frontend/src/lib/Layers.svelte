@@ -177,6 +177,12 @@
         <div class="onion-opacity"><Slider bind:value={app.onion.opacity} min={0.05} max={1} step={0.05} scale={100} title="Onion opacity" /></div>
       {/if}
     </div>
+    {#if present().includes('emission')}
+      <div class="channel-row">
+        <span class="kind mono">glow</span>
+        <div class="onion-opacity"><Slider bind:value={app.emissionStrength} min={0} max={10} step={0.1} decimals={1} reset={1} title="Emission strength, in Blender and the 3D view; double-click resets" /></div>
+      </div>
+    {/if}
     {#if present().includes('ao')}
       <div class="channel-row">
         <button class="check" class:on={app.bakeAO} title="Export and Blender get the color with the AO multiplied in; off writes the AO as its own file" onclick={() => (app.bakeAO = !app.bakeAO)}>

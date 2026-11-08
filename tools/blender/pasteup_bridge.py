@@ -162,7 +162,8 @@ def update_material(s):
                 links.remove(l)
     strength = socket(bsdf, "Emission Strength")
     if strength:
-        strength.default_value = 1.0 if s.get("emission") else 0.0
+        level = s.get("strength")
+        strength.default_value = (1.0 if level is None else level) if s.get("emission") else 0.0
     if not s.get("roughness"):
         socket(bsdf, "Roughness").default_value = 1.0
     return mat

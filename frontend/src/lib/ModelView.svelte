@@ -105,7 +105,8 @@
       material.map = flat.color ? texture(flat.color, true) : null
       material.emissiveMap = flat.emission ? texture(flat.emission, true) : null
       material.emissive.set(flat.emission ? 0xffffff : 0x000000)
-      material.emissiveIntensity = 2.5
+      // Lit 2.5 times over at strength 1, so glowing texels pass the bloom's threshold.
+      material.emissiveIntensity = 2.5 * app.emissionStrength
       material.needsUpdate = true
       needs = true
     }, 120)
@@ -114,6 +115,7 @@
   $effect(() => {
     void app.revision
     void app.bakeAO
+    void app.emissionStrength
     if (ready) retexture()
   })
 

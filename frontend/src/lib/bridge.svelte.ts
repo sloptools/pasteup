@@ -62,11 +62,12 @@ class Bridge {
     const blend = app.blend
     if (!blend) return
     const pngs = this.snapshot()
-    const sig = hash(Object.entries(pngs).flat().join())
+    const strength = app.emissionStrength
+    const sig = hash(Object.entries(pngs).flat().join() + strength)
     if (sig === this.sent) return
     this.sent = sig
     try {
-      const version = await BridgeTexture(blend, pngs)
+      const version = await BridgeTexture(blend, pngs, strength)
       if (pngs.color) this.versions.set(version, pngs.color)
       for (const v of this.versions.keys()) if (v < version - 8) this.versions.delete(v)
     } catch (err) {

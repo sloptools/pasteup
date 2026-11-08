@@ -262,6 +262,8 @@
     if (!ready) return
     void app.size
     void app.tile
+    // Not in the texture, but Blender takes it with it.
+    void app.emissionStrength
     compose()
   })
 

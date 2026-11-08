@@ -30,3 +30,26 @@ func TestPaintedPNGFlipsRows(t *testing.T) {
 		t.Fatal("wrong size accepted")
 	}
 }
+
+func TestKeepBacksUpFilesItDidNotWrite(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "nightstand.png")
+	os.WriteFile(path, []byte("painted elsewhere"), 0o644)
+	b := &bridge{}
+	if err := b.keep(path, []byte("first")); err != nil {
+		t.Fatal(err)
+	}
+	if err := b.keep(path, []byte("second")); err != nil {
+		t.Fatal(err)
+	}
+	backups, _ := filepath.Glob(filepath.Join(dir, ".pasteup-backup", "nightstand-*.png"))
+	if len(backups) != 1 {
+		t.Fatalf("%d backups, want 1 (only the file pasteup didn't write)", len(backups))
+	}
+	if data, _ := os.ReadFile(backups[0]); string(data) != "painted elsewhere" {
+		t.Fatalf("backup holds %q", data)
+	}
+	if data, _ := os.ReadFile(path); string(data) != "second" {
+		t.Fatalf("file holds %q", data)
+	}
+}

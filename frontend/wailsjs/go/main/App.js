@@ -10,8 +10,8 @@ export function BridgeRequestSync(arg1) {
   return window['go']['main']['App']['BridgeRequestSync'](arg1);
 }
 
-export function BridgeTexture(arg1, arg2) {
-  return window['go']['main']['App']['BridgeTexture'](arg1, arg2);
+export function BridgeTexture(arg1, arg2, arg3) {
+  return window['go']['main']['App']['BridgeTexture'](arg1, arg2, arg3);
 }
 
 export function BuiltinPalettes() {

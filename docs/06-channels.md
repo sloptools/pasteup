@@ -11,6 +11,8 @@ Each channel is a stack of its own layers; the tools work the same in all. Where
 
 Onion (under the tabs): another channel faintly over the canvas, as a reference while painting; it is never written.
 
+glow (with emission): how strongly it glows, 1 to start; Blender's emission strength and the 3D view's glow and bloom follow it.
+
 ao into color (on by default): export and Blender get the color with the AO multiplied in, the classic way; off writes the AO as its own file.
 
 Export writes `name.png` and beside it `name_emission.png`, `name_roughness.png`, `name_ao.png` (when kept apart). The Blender bridge wires emission into the material's emission and roughness (non-color) into its roughness, and unwires a channel removed again.

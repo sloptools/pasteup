@@ -103,6 +103,8 @@ export const app = $state({
   onion: { channel: null as Channel | null, opacity: 0.3 },
   // AO multiplies into the color on export and in Blender.
   bakeAO: true,
+  // How strongly the emission glows, in Blender and the 3D view.
+  emissionStrength: 1,
   // The crunch over the color: a palette (none, computed, or one of the project's),
   // ordered dither, sharpen, and the PS1's 15-bit color.
   finish: { mode: 'off' as 'off' | 'auto' | 'fixed', colors: 64, palette: null as string | null, dither: 0, sharpen: 0, psx: false },

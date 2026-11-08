@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"crypto/rand"
+	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/base64"
 	"encoding/hex"
@@ -30,17 +31,21 @@ type bridge struct {
 	token  string
 	file   string
 	blends map[string]*blendState
+	// What pasteup last wrote to each texture file, so one it didn't write is kept.
+	written map[string][32]byte
 }
 
 // blendState is what pasteup has for one .blend: its texture files with a count
 // that goes up with each new set, and a count of syncs pasteup asked for. A
 // channel the project doesn't have is empty.
 type blendState struct {
-	Texture   int    `json:"texture"`
-	Color     string `json:"color"`
-	Emission  string `json:"emission"`
-	Roughness string `json:"roughness"`
-	Sync      int    `json:"sync"`
+	Texture  int    `json:"texture"`
+	Color    string `json:"color"`
+	Emission string `json:"emission"`
+	// How strongly the emission glows in the material.
+	Strength  float64 `json:"strength"`
+	Roughness string  `json:"roughness"`
+	Sync      int     `json:"sync"`
 	seen      time.Time
 }
 
@@ -226,7 +231,7 @@ func (a *App) BridgeConnected() []string {
 // BridgeTexture writes the live channels beside the .blend, color as <name>.png,
 // the others as <name>_<channel>.png, and tells the add-on. It returns the
 // version, which comes back with paint from Blender.
-func (a *App) BridgeTexture(blend string, pngs map[string]string) (int, error) {
+func (a *App) BridgeTexture(blend string, pngs map[string]string, strength float64) (int, error) {
 	if a.bridge == nil {
 		return 0, errors.New("no bridge")
 	}
@@ -239,7 +244,11 @@ func (a *App) BridgeTexture(blend string, pngs map[string]string) (int, error) {
 		if err != nil {
 			return 0, err
 		}
-		if err := writePNG(path, b64); err != nil {
+		data, err := base64.StdEncoding.DecodeString(b64)
+		if err != nil {
+			return 0, err
+		}
+		if err := a.bridge.keep(path, data); err != nil {
 			return 0, err
 		}
 		paths[channel] = path
@@ -253,6 +262,7 @@ func (a *App) BridgeTexture(blend string, pngs map[string]string) (int, error) {
 	s.Color = paths["color"]
 	s.Emission = paths["emission"]
 	s.Roughness = paths["roughness"]
+	s.Strength = strength
 	return s.Texture, nil
 }
 
@@ -267,6 +277,34 @@ func channelPath(color, channel string) (string, error) {
 		return color, nil
 	}
 	return strings.TrimSuffix(color, ".png") + "_" + channel + ".png", nil
+}
+
+// keep writes a texture file, first moving a file there that pasteup didn't
+// write (or that changed since) into .pasteup-backup beside it, so a texture
+// painted elsewhere, or by another project, is never lost.
+func (b *bridge) keep(path string, data []byte) error {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if b.written == nil {
+		b.written = map[string][32]byte{}
+	}
+	if old, err := os.ReadFile(path); err == nil {
+		if mark, ok := b.written[path]; !ok || mark != sha256.Sum256(old) {
+			dir := filepath.Join(filepath.Dir(path), ".pasteup-backup")
+			if err := os.MkdirAll(dir, 0o755); err != nil {
+				return err
+			}
+			name := strings.TrimSuffix(filepath.Base(path), ".png") + time.Now().Format("-2006-01-02-150405") + ".png"
+			if err := os.WriteFile(filepath.Join(dir, name), old, 0o644); err != nil {
+				return err
+			}
+		}
+	}
+	if err := os.WriteFile(path, data, 0o644); err != nil {
+		return err
+	}
+	b.written[path] = sha256.Sum256(data)
+	return nil
 }
 
 func writePNG(path, b64 string) error {
