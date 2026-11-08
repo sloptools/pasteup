@@ -40,6 +40,10 @@ export function canvasKey(e: KeyboardEvent): boolean {
     case 'u':
       useTool('shape')
       return true
+    case 'l':
+      app.shape = 'line'
+      useTool('shape')
+      return true
     case 'U':
       if (app.canvasTool === 'shape') app.shape = shapes[(shapes.indexOf(app.shape) + 1) % shapes.length]
       useTool('shape')

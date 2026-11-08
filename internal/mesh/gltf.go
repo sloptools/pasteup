@@ -11,7 +11,9 @@ import (
 )
 
 type Tri struct {
-	UV   [3][2]float64
+	UV [3][2]float64
+	// Corners in world space.
+	P    [3]Vec
 	Part int
 }
 
@@ -28,9 +30,13 @@ type gltfDoc struct {
 		Nodes []int `json:"nodes"`
 	} `json:"scenes"`
 	Nodes []struct {
-		Name     string `json:"name"`
-		Mesh     *int   `json:"mesh"`
-		Children []int  `json:"children"`
+		Name        string    `json:"name"`
+		Mesh        *int      `json:"mesh"`
+		Children    []int     `json:"children"`
+		Matrix      []float64 `json:"matrix"`
+		Translation []float64 `json:"translation"`
+		Rotation    []float64 `json:"rotation"`
+		Scale       []float64 `json:"scale"`
 	} `json:"nodes"`
 	Meshes []struct {
 		Primitives []struct {
@@ -80,7 +86,7 @@ func ParseGLB(data []byte, sets map[string]int) (*Model, error) {
 
 	m := &Model{sets: sets}
 	for _, n := range roots {
-		if err := m.addNode(doc, bin, n); err != nil {
+		if err := m.addNode(doc, bin, n, identity()); err != nil {
 			return nil, err
 		}
 	}
@@ -115,8 +121,9 @@ func parseGLB(data []byte) (*gltfDoc, []byte, error) {
 	return &doc, bin, nil
 }
 
-func (m *Model) addNode(doc *gltfDoc, bin []byte, index int) error {
+func (m *Model) addNode(doc *gltfDoc, bin []byte, index int, parent mat4) error {
 	node := doc.Nodes[index]
+	world := parent.mul(localMatrix(node.Matrix, node.Translation, node.Rotation, node.Scale))
 
 	if node.Mesh != nil {
 		part := len(m.Parts)
@@ -125,26 +132,31 @@ func (m *Model) addNode(doc *gltfDoc, bin []byte, index int) error {
 			if prim.Mode != nil && *prim.Mode != 4 {
 				continue
 			}
-			if err := m.addPrimitive(doc, bin, prim.Attributes, prim.Indices, part, m.sets[node.Name]); err != nil {
+			if err := m.addPrimitive(doc, bin, prim.Attributes, prim.Indices, part, m.sets[node.Name], world); err != nil {
 				return err
 			}
 		}
 	}
 
 	for _, c := range node.Children {
-		if err := m.addNode(doc, bin, c); err != nil {
+		if err := m.addNode(doc, bin, c, world); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (m *Model) addPrimitive(doc *gltfDoc, bin []byte, attrs map[string]int, indices *int, part, set int) error {
+func (m *Model) addPrimitive(doc *gltfDoc, bin []byte, attrs map[string]int, indices *int, part, set int, world mat4) error {
 	ti, ok := attrs[fmt.Sprintf("TEXCOORD_%d", set)]
-	if !ok {
+	pi, hasPos := attrs["POSITION"]
+	if !ok || !hasPos {
 		return nil
 	}
 	uv, err := readFloats(doc, bin, ti, 2)
+	if err != nil {
+		return err
+	}
+	pos, err := readFloats(doc, bin, pi, 3)
 	if err != nil {
 		return err
 	}
@@ -165,6 +177,7 @@ func (m *Model) addPrimitive(doc *gltfDoc, bin []byte, attrs map[string]int, ind
 		for c := range 3 {
 			v := idx[k+c]
 			t.UV[c] = [2]float64{uv[v][0], uv[v][1]}
+			t.P[c] = world.point(Vec{pos[v][0], pos[v][1], pos[v][2]})
 		}
 		m.Tris = append(m.Tris, t)
 	}

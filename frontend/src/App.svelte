@@ -15,6 +15,7 @@
   import { addAdjust, duplicate, move, newLayer, setSize } from './lib/layerOps'
   import Tools from './lib/Tools.svelte'
   import KeyHelp from './lib/KeyHelp.svelte'
+  import ModelView from './lib/ModelView.svelte'
   import { loadNames } from './lib/grunge.svelte'
   import { dirty, markClean, open, openAny, project, projectName, save } from './lib/project.svelte'
   import ColorPanel from './lib/ColorPanel.svelte'
@@ -25,6 +26,7 @@
   let canvas: Canvas
   let refs: RefSpace
   let help = $state(false)
+  let model = $state<ModelView>()
   const wails = 'go' in window
 
   async function openModel(path = '') {
@@ -97,8 +99,17 @@
       return
     }
 
+    if (e.key === '`') {
+      e.preventDefault()
+      app.refView = app.refView === 'refs' ? '3d' : 'refs'
+      if (app.refs === 'closed') app.refs = 'open'
+      return
+    }
+
     let handled: boolean
-    if (app.focus === 'refs' && app.refs !== 'closed') handled = refs.key(e) || refKey(e)
+    // The 3D view takes no keys but ⌘0; the canvas keeps its own.
+    if (app.focus === 'refs' && app.refView === '3d') handled = false
+    else if (app.focus === 'refs' && app.refs !== 'closed') handled = refs.key(e) || refKey(e)
     else if (app.focus === 'layers') handled = layersKey(e)
     else handled = canvasKey(e)
     if (!handled && app.focus === 'canvas' && e.key === 'o') {
@@ -143,7 +154,8 @@
       const ch = channels[Number(e.code.slice(5)) - 1]
       if (present().includes(ch) || e.shiftKey) show(ch)
     } else if (e.code === 'Digit0') {
-      if (app.focus === 'refs' && app.refs !== 'closed') refs.fit()
+      if (app.focus === 'refs' && app.refView === '3d') model?.frame()
+      else if (app.focus === 'refs' && app.refs !== 'closed') refs.fit()
       else canvas.fit()
     } else return false
     return true
@@ -202,16 +214,26 @@
 
   <section class="refs" class:focus={app.focus === 'refs'}>
     <div class="bar">
-      <span class="caps">refs</span>
-      <div class="seg">
-        <button class:on={app.refTool === 'move'} onclick={() => (app.refTool = 'move')}>move <kbd>V</kbd></button>
-        <button class:on={app.refTool === 'cut'} onclick={() => (app.refTool = 'cut')}>cut <kbd>C</kbd></button>
+      <div class="seg" title="The photos, or the model in 3D with the texture (`)">
+        <button class:on={app.refView === 'refs'} onclick={() => (app.refView = 'refs')}>refs</button>
+        <button class:on={app.refView === '3d'} onclick={() => (app.refView = '3d')}>3D</button>
       </div>
-      <button class="check" class:on={app.deskew} title="Straighten cuts into rectangles (D)" onclick={() => (app.deskew = !app.deskew)}>
-        <span class="box"></span>deskew <kbd>D</kbd>
-      </button>
+      {#if app.refView === 'refs'}
+        <div class="seg">
+          <button class:on={app.refTool === 'move'} onclick={() => (app.refTool = 'move')}>move <kbd>V</kbd></button>
+          <button class:on={app.refTool === 'cut'} onclick={() => (app.refTool = 'cut')}>cut <kbd>C</kbd></button>
+        </div>
+        <button class="check" class:on={app.deskew} title="Straighten cuts into rectangles (D)" onclick={() => (app.deskew = !app.deskew)}>
+          <span class="box"></span>deskew <kbd>D</kbd>
+        </button>
+      {:else}
+        <span class="hint3d">two fingers orbit · pinch zooms · ⇧ pans</span>
+      {/if}
     </div>
-    <div class="view"><RefSpace bind:this={refs} /></div>
+    <div class="view" class:hidden={app.refView !== 'refs'}><RefSpace bind:this={refs} /></div>
+    {#if app.refView === '3d'}
+      <div class="view"><ModelView bind:this={model} source={() => canvas.flats()} /></div>
+    {/if}
   </section>
 
   <section class="canvas" class:focus={app.focus === 'canvas'}>
@@ -397,6 +419,15 @@
     gap: 4px;
     font: 12px var(--mono);
     color: var(--dim);
+  }
+  .view.hidden {
+    display: none;
+  }
+  .hint3d {
+    font-size: 12px;
+    color: var(--dim);
+    white-space: nowrap;
+    overflow: hidden;
   }
   .work {
     flex: 1;

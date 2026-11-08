@@ -16,7 +16,8 @@ The tools run down the strip right of the canvas; their settings (tip, size, opa
 | Enter, Esc | gradient: apply, discard; another tool or layer applies it too |
 | ⇧T | tile mode: off, x, y, xy |
 | O | tile mode: shift the view by half a texture, to bring a seam to the middle |
-| U, ⇧U | shape, next kind (rect, rect filled, ellipse, ellipse filled) |
+| U, ⇧U | shape, next kind (rect, rect filled, ellipse, ellipse filled, line) |
+| L | line: drag from end to end, as wide as the outline; ⇧ keeps it level, plumb or diagonal |
 | ⇧ drag, ⌥ drag | shape: square or circle, from the center |
 | [, ] | brush or eraser size, shape outline width, in texels |
 | hard | brush, eraser: 100 is hard and texel exact, lower fades the tip toward its edge; a stroke keeps each texel's strongest dab |

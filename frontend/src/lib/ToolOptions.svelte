@@ -142,7 +142,7 @@
       {/each}
     </div>
     {#if !app.shape.endsWith('filled')}
-      <Slider compact bind:value={app.shapeWidth} label="width" min={1} max={32} step={1} title="Outline width in texels ([ ])" />
+      <Slider compact bind:value={app.shapeWidth} label="width" min={1} max={32} step={1} title="Outline or line width in texels ([ ])" />
     {/if}
     <Slider compact bind:value={app.paintOpacity.shape} label="opacity" min={0.01} max={1} step={0.01} scale={100} title="Opacity (1–9, 0)" />
     {@render islandClip()}

@@ -82,19 +82,21 @@
     view?.fit(0, 0, app.size, app.size)
   }
 
-  // Every channel as a PNG, color with the AO multiplied in unless it is kept apart.
-  export function pngs(): Partial<Record<Channel, string>> {
-    const out: Partial<Record<Channel, string>> = {}
-    const flat = (ch: Channel) => composer.flatten(composed(ch), app.layout)
-    const ao = present().includes('ao') ? flat('ao') : null
+  // Every channel as it is written, color with the AO multiplied in unless it is kept apart.
+  export function flats(): Partial<Record<Channel, HTMLCanvasElement>> {
+    const out: Partial<Record<Channel, HTMLCanvasElement>> = {}
+    const ao = present().includes('ao') ? composer.flatten(composed('ao'), app.layout) : null
     for (const ch of present()) {
       if (ch === 'ao' && app.bakeAO) continue
       const layers = composed(ch)
       if (ch === 'color' && ao && app.bakeAO) layers.push({ name: 'ao', ...aoLayer(ao) })
-      const canvas = ch === 'ao' && ao ? ao : composer.flatten(layers, app.layout)
-      out[ch] = canvas.toDataURL('image/png').split(',')[1]
+      out[ch] = ch === 'ao' && ao ? ao : composer.flatten(layers, app.layout)
     }
     return out
+  }
+
+  export function pngs(): Partial<Record<Channel, string>> {
+    return Object.fromEntries(Object.entries(flats()).map(([ch, c]) => [ch, c.toDataURL('image/png').split(',')[1]]))
   }
 
   // The AO channel as a layer multiplied over the color.
@@ -221,6 +223,7 @@
       onionSprite.alpha = app.onion.opacity
     }
     refreshThumbs(composer)
+    untrack(() => app.revision++)
     bridge.changed()
     view.draw()
   }
@@ -298,6 +301,7 @@
     const [x, y] = [Math.floor(p[0]), Math.floor(p[1])]
     const tool = app.canvasTool as ColorTool
     const brush = tool === 'brush' || tool === 'eraser'
+    const line = tool === 'shape' && app.shape === 'line'
     // Alt picks a color, except with shapes, where it draws from the center.
     if (e.altKey && tool !== 'shape') return pickColor(e, x, y)
 
@@ -315,8 +319,9 @@
     const source = onMask ? l.mask! : l.canvas!
     const paint = new Stroke(source, onMask ? new DOMMatrix() : matrix(l).inverse(), app.size, {
       color: onMask ? '#ffffff' : paintColor(app.colors[e.button === 2 ? 1 : 0]),
-      tipSize: brush ? app.tipSize[tool] : 1,
-      tip: brush ? app.tip[tool] : 'square',
+      // A line is drawn with dabs as wide as the outline.
+      tipSize: brush ? app.tipSize[tool] : line ? app.shapeWidth : 1,
+      tip: brush ? app.tip[tool] : line ? 'round' : 'square',
       hardness: brush ? app.hardness[tool] : 1,
       erase: tool === 'eraser',
       opacity: app.paintOpacity[tool],
@@ -373,13 +378,24 @@
     return both
   }
 
-  // The shape from where the drag started to p: ⇧ squares it, ⌥ centers it on the start.
+  // The shape from where the drag started to p: ⇧ squares it (a line: steps of
+  // 45°), ⌥ centers it on the start.
   function drawShape(p: [number, number], e: PointerEvent) {
     if (!stroke || !dragFrom) return
     const [fx, fy] = dragFrom
     let dx = p[0] - fx
     let dy = p[1] - fy
-    if (e.shiftKey) {
+    const lining = app.shape === 'line'
+    if (e.shiftKey && lining) {
+      const lean = Math.tan(Math.PI / 8)
+      if (Math.abs(dy) < Math.abs(dx) * lean) dy = 0
+      else if (Math.abs(dx) < Math.abs(dy) * lean) dx = 0
+      else {
+        const d = Math.max(Math.abs(dx), Math.abs(dy))
+        dx = Math.sign(dx) * d
+        dy = Math.sign(dy) * d
+      }
+    } else if (e.shiftKey) {
       const d = Math.max(Math.abs(dx), Math.abs(dy))
       dx = Math.sign(dx || 1) * d
       dy = Math.sign(dy || 1) * d
@@ -389,7 +405,8 @@
     const [kind, filled] = app.shape.split(' ')
     const paint = stroke.paint
     paint.reset()
-    ;(kind === 'rect' ? rect : ellipse)(a, b, filled === 'filled', app.shapeWidth, (x, y, w) => paint.span(x, y, w))
+    if (lining) paint.line(a[0], a[1], b[0], b[1])
+    else (kind === 'rect' ? rect : ellipse)(a, b, filled === 'filled', app.shapeWidth, (x, y, w) => paint.span(x, y, w))
     repaint()
   }
 

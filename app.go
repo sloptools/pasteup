@@ -38,6 +38,8 @@ type Layout struct {
 	Path    string    `json:"path"`
 	UVs     []float32 `json:"uvs"`
 	Islands []int     `json:"islands"`
+	// Corners in world space, nine per face, for the 3D view.
+	Positions []float32 `json:"positions"`
 }
 
 // OpenModel loads a GLB, asking for one when path is empty.
@@ -64,14 +66,16 @@ func loadLayout(glb, path string, sets map[string]int) (*Layout, error) {
 		return nil, err
 	}
 	l := &Layout{
-		Name:    strings.TrimSuffix(filepath.Base(path), filepath.Ext(path)),
-		Path:    path,
-		UVs:     make([]float32, 0, len(m.Tris)*6),
-		Islands: mesh.Islands(m.Tris),
+		Name:      strings.TrimSuffix(filepath.Base(path), filepath.Ext(path)),
+		Path:      path,
+		UVs:       make([]float32, 0, len(m.Tris)*6),
+		Islands:   mesh.Islands(m.Tris),
+		Positions: make([]float32, 0, len(m.Tris)*9),
 	}
 	for _, t := range m.Tris {
-		for _, uv := range t.UV {
+		for c, uv := range t.UV {
 			l.UVs = append(l.UVs, float32(uv[0]), float32(uv[1]))
+			l.Positions = append(l.Positions, float32(t.P[c][0]), float32(t.P[c][1]), float32(t.P[c][2]))
 		}
 	}
 	return l, nil

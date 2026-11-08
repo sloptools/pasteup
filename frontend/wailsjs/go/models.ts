@@ -5,6 +5,7 @@ export namespace main {
 	    path: string;
 	    uvs: number[];
 	    islands: number[];
+	    positions: number[];
 	
 	    static createFrom(source: any = {}) {
 	        return new Layout(source);
@@ -16,6 +17,7 @@ export namespace main {
 	        this.path = source["path"];
 	        this.uvs = source["uvs"];
 	        this.islands = source["islands"];
+	        this.positions = source["positions"];
 	    }
 	}
 	export class SaveRequest {

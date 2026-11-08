@@ -79,7 +79,7 @@ export type PaintTool = 'brush' | 'eraser'
 // Tools that lay color into the active layer, each with its own opacity.
 export type ColorTool = PaintTool | 'fill' | 'shape'
 export const colorTools: CanvasTool[] = ['brush', 'eraser', 'fill', 'shape']
-export const shapes = ['rect', 'rect filled', 'ellipse', 'ellipse filled'] as const
+export const shapes = ['rect', 'rect filled', 'ellipse', 'ellipse filled', 'line'] as const
 export type Shape = (typeof shapes)[number]
 export const fillModes = ['bucket', 'gradient'] as const
 export type FillMode = (typeof fillModes)[number]
@@ -103,6 +103,10 @@ export const app = $state({
   onion: { channel: null as Channel | null, opacity: 0.3 },
   // AO multiplies into the color on export and in Blender.
   bakeAO: true,
+  // Goes up with each change of the texture, for views that follow it.
+  revision: 0,
+  // What the ref area shows: the photos, or the model in 3D.
+  refView: 'refs' as 'refs' | '3d',
   // The layer whose name is being edited.
   renaming: null as string | null,
   // Ref space beside the canvas, collapsed or maximized.

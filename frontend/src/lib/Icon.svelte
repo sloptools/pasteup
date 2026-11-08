@@ -31,6 +31,7 @@
     invert: 'M1 1h9v9H1z M5 2h4v7H5z',
     link: 'M2 1h3v1H2z M1 2h1v3H1z M5 2h1v1H5z M2 5h1v1H2z M4 4h3v1H4z M5 6h1v1H5z M8 6h1v1H8z M6 8h1v1H6z M9 6h1v3H9z M6 9h3v1H6z',
     blur: 'M4 2h3v1H4z M2 4h1v3H2z M8 4h1v3H8z M4 8h3v1H4z M3 3h1v1H3z M7 3h1v1H7z M3 7h1v1H3z M7 7h1v1H7z M5 5h1v1H5z',
+    line: 'M8 2h1v1H8z M7 3h1v1H7z M6 4h1v1H6z M5 5h1v1H5z M4 6h1v1H4z M3 7h1v1H3z M2 8h1v1H2z',
     picker: 'M8 1h2v1H8z M7 2h3v1H7z M5 3h1v1H5z M7 3h2v1H7z M6 4h1v1H6z M5 5h1v1H5z M7 5h1v1H7z M4 6h1v1H4z M6 6h1v1H6z M3 7h1v1H3z M5 7h1v1H5z M2 8h1v1H2z M4 8h1v1H4z M1 9h3v1H1z',
     eraser: 'M2 2h7v1H2z M2 3h1v1H2z M8 3h1v1H8z M2 4h1v1H2z M8 4h1v1H8z M2 5h7v1H2z M2 6h7v1H2z M2 7h7v1H2z M1 9h9v1H1z',
   } as const
