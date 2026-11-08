@@ -1,7 +1,7 @@
 import { GlProgram, Mesh, MeshGeometry, RenderTexture, Shader, Texture, type Renderer } from 'pixi.js'
 import { blends, type Blend } from './state.svelte'
 
-const vertex = /* glsl */ `#version 300 es
+export const vertex = /* glsl */ `#version 300 es
 in vec2 aPosition;
 in vec2 aUV;
 out vec2 vUV;
@@ -76,12 +76,7 @@ export class BlendPass {
         },
       },
     })
-    const geometry = new MeshGeometry({
-      positions: new Float32Array([0, 0, 1, 0, 1, 1, 0, 1]),
-      uvs: new Float32Array([0, 0, 1, 0, 1, 1, 0, 1]),
-      indices: new Uint32Array([0, 1, 2, 0, 2, 3]),
-    })
-    this.mesh = new Mesh({ geometry, shader: this.shader })
+    this.mesh = quad(this.shader)
   }
 
   draw(below: RenderTexture, layer: RenderTexture, clip: RenderTexture | null, opacity: number, mode: Blend, target: RenderTexture) {
@@ -96,4 +91,14 @@ export class BlendPass {
     this.mesh.scale.set(target.width, target.height)
     this.renderer.render({ container: this.mesh, target, clear: true, clearColor: [0, 0, 0, 0] })
   }
+}
+
+// A unit square for a full-texture shader pass; scale it to the target.
+export function quad(shader: Shader) {
+  const geometry = new MeshGeometry({
+    positions: new Float32Array([0, 0, 1, 0, 1, 1, 0, 1]),
+    uvs: new Float32Array([0, 0, 1, 0, 1, 1, 0, 1]),
+    indices: new Uint32Array([0, 1, 2, 0, 2, 3]),
+  })
+  return new Mesh({ geometry, shader })
 }

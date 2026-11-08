@@ -9,7 +9,7 @@
   import { activeLayer, app, say, sizes } from './lib/state.svelte'
   import { bridge } from './lib/bridge.svelte'
   import { redo, track, undo } from './lib/history.svelte'
-  import { duplicate, move } from './lib/layerOps'
+  import { addAdjust, duplicate, move } from './lib/layerOps'
   import { ExportPNG, OpenModel } from '../wailsjs/go/main/App'
   import { OnFileDrop } from '../wailsjs/runtime/runtime'
 
@@ -79,6 +79,7 @@
     else if (k === 'e' && e.shiftKey) exportPNG()
     else if (k === 'e') canvas.merge()
     else if (k === 'j') duplicate()
+    else if (k === 'a' && e.shiftKey) addAdjust()
     else if (e.code === 'BracketRight') move(1)
     else if (e.code === 'BracketLeft') move(-1)
     else if (k === 'g' && e.altKey) {

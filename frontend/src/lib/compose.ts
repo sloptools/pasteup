@@ -1,17 +1,22 @@
 import { CanvasSource, Container, Graphics, RenderTexture, Sprite, Texture, type Renderer } from 'pixi.js'
+import { AdjustPass } from './adjust'
 import { BlendPass } from './blend'
 import { eachFace } from './uv'
 import type { Layer, Layout } from './state.svelte'
 
 // Each layer is drawn into a texture of its own at texture size, transformed and
-// clipped to its island; those are then laid together, bottom first.
+// clipped to its island; those are then laid together, bottom first. Adjustment
+// layers are drawn from what lies below them at their turn.
 export class Composer {
   target: RenderTexture
   private pass: BlendPass
+  private adjustPass: AdjustPass
   // Ping-pong pair for laying the layers together.
   private acc: [RenderTexture, RenderTexture]
   private pieces = new WeakMap<HTMLCanvasElement, Texture>()
   private layers = new Map<string, { rt: RenderTexture; sig: string }>()
+  private masks = new Map<string, RenderTexture>()
+  private layout: Layout | null = null
 
   constructor(
     private renderer: Renderer,
@@ -20,6 +25,7 @@ export class Composer {
     this.target = this.texture(size)
     this.acc = [this.texture(size), this.texture(size)]
     this.pass = new BlendPass(renderer)
+    this.adjustPass = new AdjustPass(renderer)
   }
 
   private texture(size: number) {
@@ -30,6 +36,12 @@ export class Composer {
     if (this.target.width === size) return
     this.target.resize(size, size)
     for (const rt of this.acc) rt.resize(size, size)
+    this.dropMasks()
+  }
+
+  private dropMasks() {
+    for (const rt of this.masks.values()) rt.destroy(true)
+    this.masks.clear()
   }
 
   piece(canvas: HTMLCanvasElement): Texture {
@@ -41,20 +53,45 @@ export class Composer {
     return tex
   }
 
-  // The layer alone, as it lands in the texture.
-  layer(l: Layer, layout: Layout | null): RenderTexture {
+  private entry(id: string) {
     const size = this.target.width
-    const sig = [canvasId(l.canvas), l.x, l.y, l.scale, l.turns, l.flipX, l.flipY, l.island, size, layout?.uvs.length ?? 0].join()
-    let entry = this.layers.get(l.id)
-    if (entry && entry.sig === sig) return entry.rt
+    let entry = this.layers.get(id)
     if (!entry || entry.rt.width !== size) {
       entry?.rt.destroy(true)
       entry = { rt: this.texture(size), sig: '' }
-      this.layers.set(l.id, entry)
+      this.layers.set(id, entry)
     }
+    return entry
+  }
+
+  // White where the island lies.
+  private mask(island: number, layout: Layout): RenderTexture {
+    const size = this.target.width
+    const key = `${island}:${idOf(layout)}`
+    let rt = this.masks.get(key)
+    if (rt) return rt
+    rt = this.texture(size)
+    const g = new Graphics()
+    eachFace(layout, island, (p) => {
+      g.poly(p.map((c) => c * size))
+    })
+    g.fill(0xffffff)
+    this.renderer.render({ container: g, target: rt, clear: true, clearColor: [0, 0, 0, 0] })
+    g.destroy()
+    this.masks.set(key, rt)
+    return rt
+  }
+
+  // The layer alone, as it lands in the texture.
+  layer(l: Layer, layout: Layout | null): RenderTexture {
+    const canvas = l.canvas!
+    const size = this.target.width
+    const sig = [idOf(canvas), l.x, l.y, l.scale, l.turns, l.flipX, l.flipY, l.island, size, layout && idOf(layout)].join()
+    const entry = this.entry(l.id)
+    if (entry.sig === sig) return entry.rt
 
     const scene = new Container()
-    const sprite = new Sprite(this.piece(l.canvas))
+    const sprite = new Sprite(this.piece(canvas))
     place(sprite, l)
     scene.addChild(sprite)
     if (l.island !== null && layout) {
@@ -74,6 +111,8 @@ export class Composer {
 
   // Lays the layers together into target, or into the main texture.
   render(layers: Layer[], layout: Layout | null, target = this.target) {
+    if (layout !== this.layout) this.dropMasks()
+    this.layout = layout
     const visible: [Layer, Layer | undefined][] = []
     let base: Layer | undefined
     for (const l of layers) {
@@ -83,14 +122,24 @@ export class Composer {
 
     let [below, next] = this.acc
     this.renderer.render({ container: new Container(), target: below, clear: true, clearColor: [0, 0, 0, 0] })
+    const drawn = new Map<string, RenderTexture>()
     visible.forEach(([l, clipTo], i) => {
       const out = i === visible.length - 1 ? target : next
-      const clip = clipTo ? this.layer(clipTo, layout) : null
-      this.pass.draw(below, this.layer(l, layout), clip, l.opacity, l.blend, out)
+      const rt = l.adjust ? this.adjusted(l, below, layout) : this.layer(l, layout)
+      drawn.set(l.id, rt)
+      this.pass.draw(below, rt, clipTo ? drawn.get(clipTo.id)! : null, l.opacity, l.blend, out)
       ;[below, next] = [out, below]
     })
     if (!visible.length) this.renderer.render({ container: new Container(), target, clear: true, clearColor: [0, 0, 0, 0] })
     this.prune(layers)
+  }
+
+  private adjusted(l: Layer, below: RenderTexture, layout: Layout | null): RenderTexture {
+    const entry = this.entry(l.id)
+    entry.sig = ''
+    const mask = l.island !== null && layout ? this.mask(l.island, layout) : null
+    this.adjustPass.draw(below, mask, l.adjust!, entry.rt)
+    return entry.rt
   }
 
   // Drops the textures of layers that are gone.
@@ -132,11 +181,12 @@ export class Composer {
   }
 }
 
-const canvasIds = new WeakMap<HTMLCanvasElement, number>()
-let nextCanvas = 0
-function canvasId(c: HTMLCanvasElement) {
-  if (!canvasIds.has(c)) canvasIds.set(c, nextCanvas++)
-  return canvasIds.get(c)
+// Pieces and layouts are replaced, never changed, so identity tells them apart.
+const objectIds = new WeakMap<object, number>()
+let nextId = 0
+function idOf(o: object) {
+  if (!objectIds.has(o)) objectIds.set(o, nextId++)
+  return objectIds.get(o)
 }
 
 // Sets a sprite or frame to the layer's transform, in texels.
@@ -149,13 +199,15 @@ export function place(node: Sprite | Graphics, l: Layer) {
 
 // Whether a texel point hits an opaque pixel of the layer.
 export function hits(l: Layer, x: number, y: number): boolean {
+  const canvas = l.canvas
+  if (!canvas) return false
   const a = (-l.turns * Math.PI) / 2
   const dx = x - l.x
   const dy = y - l.y
   const rx = (dx * Math.cos(a) - dy * Math.sin(a)) / (l.scale * (l.flipX ? -1 : 1))
   const ry = (dx * Math.sin(a) + dy * Math.cos(a)) / (l.scale * (l.flipY ? -1 : 1))
-  const px = Math.floor(rx + l.canvas.width / 2)
-  const py = Math.floor(ry + l.canvas.height / 2)
-  if (px < 0 || py < 0 || px >= l.canvas.width || py >= l.canvas.height) return false
-  return l.canvas.getContext('2d')!.getImageData(px, py, 1, 1).data[3] > 0
+  const px = Math.floor(rx + canvas.width / 2)
+  const py = Math.floor(ry + canvas.height / 2)
+  if (px < 0 || py < 0 || px >= canvas.width || py >= canvas.height) return false
+  return canvas.getContext('2d')!.getImageData(px, py, 1, 1).data[3] > 0
 }

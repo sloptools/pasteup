@@ -4,7 +4,7 @@
   import { View } from './view'
   import { Composer, hits, place } from './compose'
   import { edges, eachFace, islandAt } from './uv'
-  import { activeLayer, app } from './state.svelte'
+  import { activeLayer, app, cloneLayer } from './state.svelte'
   import { bridge } from './bridge.svelte'
   import { mergeDown } from './layerOps'
 
@@ -73,7 +73,7 @@
   $effect(() => {
     if (!ready) return
     void app.size
-    const layers = app.layers.map((l) => ({ ...l }))
+    const layers = app.layers.map(cloneLayer)
     composer.render(layers, app.layout)
     bridge.changed()
     view.draw()
@@ -83,7 +83,7 @@
     if (!ready) return
     frame.clear()
     const l = activeLayer()
-    if (l) {
+    if (l?.canvas) {
       place(frame, l)
       frame.rect(-l.canvas.width / 2, -l.canvas.height / 2, l.canvas.width, l.canvas.height)
       frame.stroke({ width: 1, color: 0x7fc4af, pixelLine: true })
@@ -131,7 +131,7 @@
         l.island = island === l.island ? null : island
         return
       }
-      if (!l) return
+      if (!l?.canvas) return
       drag = { from: p, at: [l.x, l.y] }
       el.setPointerCapture(e.pointerId)
     })

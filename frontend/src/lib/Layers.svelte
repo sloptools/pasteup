@@ -1,10 +1,20 @@
 <script lang="ts">
   import Icon from './Icon.svelte'
-  import { activeLayer, app, blends, removeLayer, type Layer } from './state.svelte'
-  import { duplicate } from './layerOps'
+  import { activeLayer, app, blends, neutral, removeLayer, type Adjust, type Layer } from './state.svelte'
+  import { addAdjust, duplicate } from './layerOps'
 
   let { onmerge }: { onmerge: () => void } = $props()
   const active = $derived(activeLayer())
+
+  // Slider ranges and how each value reads.
+  const controls: [keyof Adjust, string, number, number, number, (v: number) => string][] = [
+    ['hue', 'hue', -180, 180, 1, (v) => `${v}`],
+    ['saturation', 'sat', -1, 1, 0.01, (v) => `${Math.round(v * 100)}`],
+    ['brightness', 'bright', -1, 1, 0.01, (v) => `${Math.round(v * 100)}`],
+    ['black', 'black', 0, 1, 1 / 255, (v) => `${Math.round(v * 255)}`],
+    ['gamma', 'gamma', 0.1, 3, 0.01, (v) => v.toFixed(2)],
+    ['white', 'white', 0, 1, 1 / 255, (v) => `${Math.round(v * 255)}`],
+  ]
 
   let armed = $state<string | null>(null)
   let list: HTMLDivElement
@@ -85,7 +95,10 @@
 </script>
 
 <div class="layers">
-  <div class="head caps">layers</div>
+  <div class="head">
+    <span class="caps">layers</span>
+    <button class="text-button" title="Adjustment layer (⌘⇧A)" onclick={addAdjust}>+ adjust</button>
+  </div>
   {#if active}
     <div class="props">
       <select class="mono" title="Blend mode (⇧+ ⇧−)" bind:value={active.blend}>
@@ -96,6 +109,18 @@
         <span>{Math.round(active.opacity * 100)}</span>
       </label>
     </div>
+    {#if active.adjust}
+      {@const adjust = active.adjust}
+      <div class="adjust">
+        {#each controls as [key, label, min, max, step, show]}
+          <label class="slider mono" title="double-click resets">
+            <span class="label">{label}</span>
+            <input type="range" {min} {max} {step} bind:value={adjust[key]} ondblclick={() => (adjust[key] = neutral[key])} />
+            <span class="value">{show(adjust[key])}</span>
+          </label>
+        {/each}
+      </div>
+    {/if}
     <div class="props">
       <button class="check" class:on={active.clip} title="Clip to the layer below (⌘⌥G)" onclick={() => (active.clip = !active.clip)}>
         <span class="box"></span>clip
@@ -151,7 +176,38 @@
     height: 26px;
     display: flex;
     align-items: center;
+    justify-content: space-between;
     padding: 0 6px;
+  }
+  .adjust {
+    display: grid;
+    gap: 2px;
+    padding: 0 6px 8px;
+  }
+  .slider {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    height: 22px;
+    font: 12px var(--mono);
+    color: var(--fg);
+  }
+  .slider .label {
+    width: 48px;
+    color: var(--dim);
+  }
+  .slider input {
+    flex: 1;
+    width: 0;
+    min-width: 0;
+    accent-color: var(--dim);
+  }
+  input[type='range']:focus-visible {
+    outline: none;
+  }
+  .slider .value {
+    width: 32px;
+    text-align: right;
   }
   .props {
     display: flex;

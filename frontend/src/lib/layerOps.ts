@@ -1,11 +1,11 @@
 import type { Composer } from './compose'
-import { activeLayer, addLayer, app, newId, removeLayer } from './state.svelte'
+import { activeLayer, addLayer, app, cloneLayer, neutral, newId, removeLayer } from './state.svelte'
 
 export function duplicate() {
   const l = activeLayer()
   if (!l) return
   const at = app.layers.indexOf(l) + 1
-  const copy = { ...l, id: newId(), name: `${l.name} copy` }
+  const copy = { ...cloneLayer(l), id: newId(), name: `${l.name} copy` }
   app.layers.splice(at, 0, copy)
   app.active = copy.id
 }
@@ -26,8 +26,8 @@ export function mergeDown(composer: Composer) {
   const l = activeLayer()
   const at = l ? app.layers.indexOf(l) : -1
   if (!l || at < 1) return
-  const below = { ...app.layers[at - 1] }
-  const pair = [{ ...below, opacity: 1, blend: 'normal' as const, clip: false, visible: true }, { ...l }]
+  const below = cloneLayer(app.layers[at - 1])
+  const pair = [{ ...below, opacity: 1, blend: 'normal' as const, clip: false, visible: true }, cloneLayer(l)]
   const canvas = composer.flatten(pair, app.layout)
   const size = app.size
 
@@ -44,7 +44,15 @@ export function mergeDown(composer: Composer) {
       flipX: false,
       flipY: false,
       island: null,
+      adjust: null,
     },
     at - 1,
   )
+}
+
+// An adjustment layer above the active one.
+export function addAdjust() {
+  const l = activeLayer()
+  const at = l ? app.layers.indexOf(l) + 1 : app.layers.length
+  addLayer({ name: 'adjust', canvas: null, adjust: { ...neutral }, x: 0, y: 0, scale: 1, turns: 0, flipX: false, flipY: false, island: null }, at)
 }

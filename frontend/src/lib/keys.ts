@@ -39,6 +39,10 @@ export function canvasKey(e: KeyboardEvent): boolean {
     case 'Delete':
       removeLayer(l.id)
       return true
+  }
+
+  if (!l.canvas) return false
+  switch (e.key) {
     case 'ArrowLeft':
       l.x -= step
       return true

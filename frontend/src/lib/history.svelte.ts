@@ -1,4 +1,4 @@
-import { app, type Layer } from './state.svelte'
+import { app, cloneLayer, type Layer } from './state.svelte'
 
 // Undo over the layers: a snapshot once edits rest, so a drag or a run of key
 // presses is one step. Pieces are never changed in place, so snapshots share them.
@@ -12,10 +12,10 @@ let lastKey = ''
 let timer = 0
 let restoring = false
 
-const copy = (layers: Layer[]): Layer[] => layers.map((l) => ({ ...l }))
+const copy = (layers: Layer[]): Layer[] => layers.map(cloneLayer)
 
 function key(layers: Layer[]) {
-  return JSON.stringify(layers, (k, v) => (k === 'canvas' ? `${v.width}x${v.height}:${canvasKey(v)}` : v))
+  return JSON.stringify(layers, (k, v) => (k === 'canvas' && v ? canvasKey(v) : v))
 }
 
 const keys = new WeakMap<HTMLCanvasElement, number>()
