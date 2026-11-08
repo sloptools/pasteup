@@ -5,7 +5,7 @@
   import ContextMenu, { type Item } from './ContextMenu.svelte'
   import { cutout, deskew, type Corner, type Quad } from './deskew'
   import { addFiles, addPaths, photoLevels } from './photos'
-  import { app, newId, say, type Photo } from './state.svelte'
+  import { addLayer, app, say, type Photo } from './state.svelte'
   import { OpenPhotos } from '../../wailsjs/go/main/App'
 
   let el: HTMLDivElement
@@ -136,9 +136,7 @@
     const quad = $state.snapshot(cut.quad) as Quad
     const canvas = app.deskew ? deskew(photoLevels(p), quad) : cutout(p.img, quad)
     const scale = app.size / 2 / Math.max(canvas.width, canvas.height)
-    const id = newId()
-    app.layers.push({
-      id,
+    addLayer({
       name: `${p.name.replace(/\.\w+$/, '')} ${app.layers.length + 1}`,
       canvas,
       x: app.size / 2,
@@ -148,9 +146,7 @@
       flipX: false,
       flipY: false,
       island: null,
-      visible: true,
     })
-    app.active = id
     cut = null
     say(`piece ${canvas.width}×${canvas.height} placed`)
   }

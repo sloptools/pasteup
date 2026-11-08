@@ -28,7 +28,14 @@ export type Layer = {
   // UV island the layer is clipped to.
   island: number | null
   visible: boolean
+  opacity: number
+  blend: Blend
+  // Shows only where the next unclipped layer below has pixels.
+  clip: boolean
 }
+
+export const blends = ['normal', 'multiply', 'screen', 'overlay', 'add', 'soft-light'] as const
+export type Blend = (typeof blends)[number]
 
 export type Region = 'refs' | 'canvas'
 
@@ -71,4 +78,18 @@ export function removeLayer(id: string) {
   if (at < 0) return
   app.layers.splice(at, 1)
   if (app.active === id) app.active = app.layers[Math.max(0, at - 1)]?.id ?? null
+}
+
+// A new layer above the others, made active.
+type NewLayer = Omit<Layer, 'id' | 'visible' | 'opacity' | 'blend' | 'clip'> & Partial<Layer>
+
+export function addLayer(l: NewLayer, at = app.layers.length) {
+  const layer: Layer = { visible: true, opacity: 1, blend: 'normal', clip: false, ...l, id: newId() }
+  app.layers.splice(at, 0, layer)
+  app.active = layer.id
+}
+
+// The layer an unclipped layer's clip shows through: the next unclipped one below.
+export function clipBase(index: number): Layer | undefined {
+  for (let i = index - 1; i >= 0; i--) if (!app.layers[i].clip) return app.layers[i]
 }

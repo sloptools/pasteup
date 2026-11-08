@@ -1,4 +1,4 @@
-import { activeLayer, app, removeLayer } from './state.svelte'
+import { activeLayer, app, blends, removeLayer } from './state.svelte'
 
 // Canvas keys; true when handled. Transforms act on the active layer only.
 export function canvasKey(e: KeyboardEvent): boolean {
@@ -17,6 +17,19 @@ export function canvasKey(e: KeyboardEvent): boolean {
 
   const l = activeLayer()
   if (!l) return false
+
+  // 1 to 9 set the opacity in tens, 0 to full, as in Photoshop.
+  if (/^Digit\d$/.test(e.code) && !e.shiftKey) {
+    const d = Number(e.code.slice(5))
+    l.opacity = d === 0 ? 1 : d / 10
+    return true
+  }
+  if (e.key === '+' || e.key === '_' || (e.shiftKey && (e.code === 'Equal' || e.code === 'Minus'))) {
+    const at = blends.indexOf(l.blend) + (e.code === 'Equal' || e.key === '+' ? 1 : -1)
+    l.blend = blends[(at + blends.length) % blends.length]
+    return true
+  }
+
   const step = e.shiftKey ? 8 : 1
   switch (e.key) {
     case 'Enter':

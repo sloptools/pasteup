@@ -6,8 +6,10 @@
   import Icon from './lib/Icon.svelte'
   import { canvasKey, refKey } from './lib/keys'
   import { addPaths } from './lib/photos'
-  import { app, say, sizes } from './lib/state.svelte'
+  import { activeLayer, app, say, sizes } from './lib/state.svelte'
   import { bridge } from './lib/bridge.svelte'
+  import { redo, track, undo } from './lib/history.svelte'
+  import { duplicate, move } from './lib/layerOps'
   import { ExportPNG, OpenModel } from '../wailsjs/go/main/App'
   import { OnFileDrop } from '../wailsjs/runtime/runtime'
 
@@ -53,33 +55,44 @@
   }
 
   function onKey(e: KeyboardEvent) {
-    if (e.target instanceof HTMLInputElement) return
+    if (e.target instanceof HTMLInputElement && e.target.type === 'text') return
     if (e.key === 'Tab') {
       e.preventDefault()
       toggleRefs(e.shiftKey)
       return
     }
     if (e.metaKey) {
-      if (e.key === 'o') openModel()
-      else if (e.key === 'e') exportPNG()
-      else return
-      e.preventDefault()
+      if (metaKey(e)) e.preventDefault()
       return
     }
     if (e.ctrlKey || e.altKey) return
 
-    let handled = false
-    if (app.focus === 'refs' && app.refs !== 'closed') {
-      handled = refs.key(e) || refKey(e)
-      if (!handled && e.key === '0') refs.fit()
-    } else {
-      handled = canvasKey(e)
-      if (!handled && e.key === '0') canvas.fit()
-    }
-    if (handled || e.key === '0') e.preventDefault()
+    const handled = app.focus === 'refs' && app.refs !== 'closed' ? refs.key(e) || refKey(e) : canvasKey(e)
+    if (handled) e.preventDefault()
+  }
+
+  // ⌘ keys; layer keys as in Photoshop. True when handled.
+  function metaKey(e: KeyboardEvent): boolean {
+    const k = e.key.toLowerCase()
+    if (k === 'z') return e.shiftKey ? redo() || true : undo() || true
+    if (k === 'o') openModel()
+    else if (k === 'e' && e.shiftKey) exportPNG()
+    else if (k === 'e') canvas.merge()
+    else if (k === 'j') duplicate()
+    else if (e.code === 'BracketRight') move(1)
+    else if (e.code === 'BracketLeft') move(-1)
+    else if (k === 'g' && e.altKey) {
+      const l = activeLayer()
+      if (l) l.clip = !l.clip
+    } else if (e.code === 'Digit0') {
+      if (app.focus === 'refs' && app.refs !== 'closed') refs.fit()
+      else canvas.fit()
+    } else return false
+    return true
   }
 
   onMount(() => {
+    track()
     if (!wails) return
     bridge.start(() => canvas.png())
     OnFileDrop((x, y, paths) => {
@@ -110,7 +123,7 @@
         <button class:on={app.size === s} onclick={() => (app.size = s)}>{s}</button>
       {/each}
     </div>
-    <button class="text-button" title="Export the texture as PNG (⌘E)" onclick={exportPNG}>export</button>
+    <button class="text-button" title="Export the texture as PNG (⌘⇧E)" onclick={exportPNG}>export</button>
   </header>
 
   <section class="refs" class:focus={app.focus === 'refs'}>
@@ -140,7 +153,7 @@
   </section>
 
   <aside>
-    <Layers />
+    <Layers onmerge={() => canvas.merge()} />
   </aside>
 
   <footer class="mono">{app.status}</footer>

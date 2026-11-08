@@ -6,6 +6,7 @@
   import { edges, eachFace, islandAt } from './uv'
   import { activeLayer, app } from './state.svelte'
   import { bridge } from './bridge.svelte'
+  import { mergeDown } from './layerOps'
 
   let el: HTMLDivElement
   let view: View
@@ -39,6 +40,10 @@
 
   export function png(): string {
     return composer.png()
+  }
+
+  export function merge() {
+    mergeDown(composer)
   }
 
   $effect(() => {
