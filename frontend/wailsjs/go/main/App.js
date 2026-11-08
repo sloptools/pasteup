@@ -42,6 +42,10 @@ export function OpenDialog() {
   return window['go']['main']['App']['OpenDialog']();
 }
 
+export function OpenGrungeFolder() {
+  return window['go']['main']['App']['OpenGrungeFolder']();
+}
+
 export function OpenModel(arg1) {
   return window['go']['main']['App']['OpenModel'](arg1);
 }

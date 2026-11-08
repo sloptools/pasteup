@@ -4,7 +4,8 @@
   import ContextMenu, { type Item } from './ContextMenu.svelte'
   import { activeLayer, app, blends, channels, masking, neutral, removeLayer, type Channel, type Adjust, type Layer } from './state.svelte'
   import { addAdjust, duplicate, invertMask, newGrunge, newLayer, toggleMaskMode } from './layerOps'
-  import { generated, grunge, newMask, scaleFor } from './grunge.svelte'
+  import { generated, grunge, loadNames, newMask, scaleFor } from './grunge.svelte'
+  import { OpenGrungeFolder } from '../../wailsjs/go/main/App'
   import { thumbs } from './thumbs.svelte'
   import { copyTo, present, remove as removeChannel, short, show } from './channels'
 
@@ -120,6 +121,13 @@
   function setGrunge(l: Layer, map: string) {
     if (l.grunge) Object.assign(l.grunge, { map, scale: scaleFor(map) })
     else l.grunge = newMask(map)
+  }
+
+  // The folder entry shows the grunge folder; the list then shows the map again.
+  function chooseMap(l: Layer, select: HTMLSelectElement) {
+    if (select.value !== ':folder') return setGrunge(l, select.value)
+    select.value = l.grunge?.map ?? ''
+    OpenGrungeFolder()
   }
 
   function blurTo(b: NonNullable<Layer['blur']>, axis: 'x' | 'y', v: number) {
@@ -293,8 +301,11 @@
           <button class="kind fold mono" title="Show or hide its settings" onclick={() => (folded.grunge = !folded.grunge)}>
             <span class="caret" class:open={!folded.grunge}>▸</span>grunge
           </button>
-          <select class="mono grunge-map" title="Grunge mask: the layer shows only where it does" value={g.map} onchange={(e) => setGrunge(active, e.currentTarget.value)}>
+          <select class="mono grunge-map" title="Grunge mask: the layer shows only where it does" value={g.map} onfocus={loadNames} onchange={(e) => chooseMap(active, e.currentTarget)}>
             {#each [...generated, ...grunge.names] as name}<option value={name}>{name.replace('_', ' ')}</option>{/each}
+            {#if !generated.includes(g.map) && !grunge.names.includes(g.map)}<option value={g.map}>{g.map.replace('_', ' ')} (missing)</option>{/if}
+            <option disabled>──</option>
+            <option value=":folder">maps folder…</option>
           </select>
           <button class="icon small" class:on={g.invert} title="Inverted: show where the grunge hides" onclick={() => (g.invert = !g.invert)}><Icon name="invert" /></button>
           <button class="icon small" title="Remove the grunge mask" onclick={() => (active.grunge = null)}><Icon name="trash" /></button>

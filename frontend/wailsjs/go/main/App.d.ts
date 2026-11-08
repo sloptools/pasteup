@@ -22,6 +22,8 @@ export function LospecPalette(arg1:string):Promise<main.Palette>;
 
 export function OpenDialog():Promise<string>;
 
+export function OpenGrungeFolder():Promise<void>;
+
 export function OpenModel(arg1:string):Promise<main.Layout>;
 
 export function OpenPalette():Promise<main.Palette>;

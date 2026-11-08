@@ -3,7 +3,9 @@ package main
 import (
 	"context"
 	"net/http"
+	"os/exec"
 	"path/filepath"
+	goruntime "runtime"
 	"strings"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
@@ -122,9 +124,28 @@ func (a *App) OpenPhotos() ([]string, error) {
 
 var imageExt = map[string]bool{".png": true, ".jpg": true, ".jpeg": true, ".webp": true}
 
-// GrungeMaps lists the built-in grunge maps, served at /grunge?name=.
+// GrungeMaps lists the grunge maps in the grunge folder, served at /grunge?name=.
 func (a *App) GrungeMaps() []string {
-	return grunge.Names()
+	dir, err := grunge.Dir()
+	if err != nil {
+		return []string{}
+	}
+	return grunge.Names(dir)
+}
+
+// OpenGrungeFolder shows the grunge folder in the file manager.
+func (a *App) OpenGrungeFolder() error {
+	dir, err := grunge.Dir()
+	if err != nil {
+		return err
+	}
+	switch goruntime.GOOS {
+	case "darwin":
+		return exec.Command("open", dir).Start()
+	case "windows":
+		return exec.Command("explorer", dir).Start()
+	}
+	return exec.Command("xdg-open", dir).Start()
 }
 
 // middleware serves dropped photos, project entries and the grunge maps, which are too large for bindings.
@@ -135,13 +156,15 @@ func (a *App) middleware(next http.Handler) http.Handler {
 			return
 		}
 		if r.URL.Path == "/grunge" {
-			data, err := grunge.PNG(r.URL.Query().Get("name"))
-			if err != nil {
-				http.Error(w, "no such map", http.StatusNotFound)
-				return
+			dir, err := grunge.Dir()
+			if err == nil {
+				var file string
+				if file, err = grunge.Path(dir, r.URL.Query().Get("name")); err == nil {
+					http.ServeFile(w, r, file)
+					return
+				}
 			}
-			w.Header().Set("Content-Type", "image/png")
-			w.Write(data)
+			http.Error(w, "no such map", http.StatusNotFound)
 			return
 		}
 		if r.URL.Path != "/photo" {
