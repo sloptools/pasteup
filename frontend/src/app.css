@@ -82,3 +82,61 @@ kbd {
   color: var(--faint);
   border-color: var(--line);
 }
+
+.seg {
+  display: flex;
+  padding: 2px;
+  gap: 2px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  --wails-draggable: no-drag;
+}
+.seg button {
+  height: 20px;
+  padding: 0 7px;
+  border: 0;
+  border-radius: 5px;
+  background: none;
+  font: 12px var(--mono);
+  color: var(--dim);
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.seg button.on {
+  background: var(--active);
+  color: var(--strong);
+}
+
+.check {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: 12px var(--mono);
+  color: var(--dim);
+}
+.check .box {
+  width: 9px;
+  height: 9px;
+  border: 1px solid var(--faint);
+  border-radius: 2px;
+}
+.check.on {
+  color: var(--fg);
+}
+.check.on .box {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+input[type='range'] {
+  accent-color: var(--dim);
+}
+input[type='range']:focus-visible {
+  outline: none;
+}

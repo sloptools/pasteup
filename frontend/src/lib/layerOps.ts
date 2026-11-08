@@ -1,5 +1,5 @@
 import type { Composer } from './compose'
-import { activeLayer, addLayer, app, cloneLayer, neutral, newId, removeLayer } from './state.svelte'
+import { activeLayer, addLayer, app, cloneLayer, neutral, newId, removeLayer, type Layer } from './state.svelte'
 
 export function duplicate() {
   const l = activeLayer()
@@ -29,7 +29,6 @@ export function mergeDown(composer: Composer) {
   const below = cloneLayer(app.layers[at - 1])
   const pair = [{ ...below, opacity: 1, blend: 'normal' as const, clip: false, visible: true }, cloneLayer(l)]
   const canvas = composer.flatten(pair, app.layout)
-  const size = app.size
 
   removeLayer(l.id)
   removeLayer(below.id)
@@ -37,17 +36,41 @@ export function mergeDown(composer: Composer) {
     {
       ...below,
       canvas,
-      x: size / 2,
-      y: size / 2,
-      scale: 1,
-      turns: 0,
-      flipX: false,
-      flipY: false,
+      ...identity(),
       island: null,
       adjust: null,
     },
     at - 1,
   )
+}
+
+// Untransformed placement at texture size: one canvas pixel per texel.
+const identity = () => ({ x: app.size / 2, y: app.size / 2, scale: 1, turns: 0, flipX: false, flipY: false })
+
+export function blank(): HTMLCanvasElement {
+  const canvas = document.createElement('canvas')
+  canvas.width = app.size
+  canvas.height = app.size
+  return canvas
+}
+
+// An empty layer to paint on, above the active one.
+export function newLayer() {
+  const l = activeLayer()
+  const at = l ? app.layers.indexOf(l) + 1 : app.layers.length
+  addLayer({ name: 'paint', canvas: blank(), island: null, ...identity() }, at)
+}
+
+// Whether painting on the layer lands one canvas pixel per texel.
+export function isTexels(l: Layer) {
+  const i = identity()
+  return l.canvas?.width === app.size && l.canvas.height === app.size && (Object.keys(i) as (keyof typeof i)[]).every((k) => l[k] === i[k])
+}
+
+// Bakes a placed piece into texels, so a brush can paint on it.
+export function toTexels(l: Layer, composer: Composer) {
+  const canvas = composer.flatten([{ ...cloneLayer(l), visible: true, opacity: 1, blend: 'normal', clip: false }], app.layout)
+  Object.assign(l, { canvas, ...identity() })
 }
 
 // An adjustment layer above the active one.

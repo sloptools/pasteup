@@ -4,9 +4,11 @@
   import { View } from './view'
   import { Composer, hits, place } from './compose'
   import { edges, eachFace, islandAt } from './uv'
-  import { activeLayer, app, cloneLayer } from './state.svelte'
+  import { activeLayer, app, cloneLayer, say, type PaintTool } from './state.svelte'
   import { bridge } from './bridge.svelte'
-  import { mergeDown } from './layerOps'
+  import { isTexels, mergeDown, newLayer, toTexels } from './layerOps'
+  import { footprint, Stroke } from './paint'
+  import { checkpoint } from './history.svelte'
 
   let el: HTMLDivElement
   let view: View
@@ -19,13 +21,19 @@
   const uvLines = new Graphics()
   const islandMark = new Graphics()
   const frame = new Graphics()
+  const tip = new Graphics()
+
+  const painting = $derived(app.canvasTool === 'brush' || app.canvasTool === 'eraser')
+  let stroke: { layer: string; paint: Stroke } | null = null
+  // Where the last stroke ended, for Shift-click lines.
+  let last: [number, number] | null = null
 
   onMount(() => {
     view = new View(el, [0.25, 64])
     view.init().then(() => {
       composer = new Composer(view.pixi.renderer, app.size)
       const texture = new Sprite(composer.target)
-      view.world.addChild(checker, texture, uvLines, islandMark, frame)
+      view.world.addChild(checker, texture, uvLines, islandMark, frame, tip)
       listen()
       if (import.meta.env.DEV) Object.assign(window, { composer, canvasView: view })
       ready = true
@@ -69,13 +77,28 @@
     view.draw()
   })
 
+  function compose() {
+    composer.render(app.layers.map(cloneLayer), app.layout)
+    bridge.changed()
+    view.draw()
+  }
+
   // Every layer property the texture depends on.
   $effect(() => {
     if (!ready) return
     void app.size
-    const layers = app.layers.map(cloneLayer)
-    composer.render(layers, app.layout)
-    bridge.changed()
+    compose()
+  })
+
+  // The brush footprint under the cursor.
+  $effect(() => {
+    if (!ready) return
+    tip.clear()
+    if (painting && hover) {
+      const tool = app.canvasTool as PaintTool
+      for (const [dy, dx, w] of footprint(app.tipSize[tool], app.tip[tool])) tip.rect(hover[0] + dx, hover[1] + dy, w, 1)
+      tip.fill(tool === 'brush' ? { color: app.colors[0], alpha: 0.7 } : { color: 0xebe8df, alpha: 0.35 })
+    }
     view.draw()
   })
 
@@ -114,14 +137,62 @@
     if (l) app.active = l.id
   }
 
+  // Into the primary color, or the secondary with the right button.
+  function pickColor(e: PointerEvent, x: number, y: number) {
+    const color = composer.pick(x, y)
+    if (color) app.colors[e.button === 2 ? 1 : 0] = color
+    app.picking = false
+  }
+
+  function paintStart(e: PointerEvent, x: number, y: number) {
+    const tool = app.canvasTool as PaintTool
+    if (e.altKey) return pickColor(e, x, y)
+
+    checkpoint()
+    if (!activeLayer() && tool === 'brush') newLayer()
+    const l = activeLayer()
+    if (!l) return
+    if (l.adjust) return say('adjustment layers take no paint')
+    if (!isTexels(l)) {
+      toTexels(l, composer)
+      say(`${l.name} baked to texels for painting`)
+    }
+
+    stroke = { layer: l.id, paint: new Stroke(l.canvas!, app.colors[e.button === 2 ? 1 : 0], app.tipSize[tool], app.tip[tool], tool === 'eraser', app.paintOpacity[tool]) }
+    composer.stroke(l.id, stroke.paint.canvas)
+    if (e.shiftKey && last) stroke.paint.line(last[0], last[1], x, y)
+    else stroke.paint.dot(x, y)
+    last = [x, y]
+    el.setPointerCapture(e.pointerId)
+    repaint()
+  }
+
+  function repaint() {
+    stroke?.paint.flush()
+    composer.touch()
+    compose()
+  }
+
+  function paintEnd() {
+    if (!stroke) return
+    const l = app.layers.find((l) => l.id === stroke!.layer)
+    if (l) l.canvas = stroke.paint.canvas
+    composer.stroke(stroke.layer, null)
+    stroke = null
+    checkpoint()
+  }
+
   function listen() {
     let drag: { from: [number, number]; at: [number, number] } | null = null
 
     el.addEventListener('pointerenter', () => (app.focus = 'canvas'))
     el.addEventListener('pointerdown', (e) => {
       app.focus = 'canvas'
-      if (view.panning || e.button !== 0) return
+      const right = e.button === 2 && (painting || app.picking)
+      if (view.panning || (e.button !== 0 && !right)) return
       const p = texel(e)
+      if (app.picking) return pickColor(e, Math.floor(p[0]), Math.floor(p[1]))
+      if (painting) return paintStart(e, Math.floor(p[0]), Math.floor(p[1]))
       if (e.shiftKey) return pick(p)
       const l = activeLayer()
 
@@ -140,6 +211,12 @@
       const p = texel(e)
       hover = [Math.floor(p[0]), Math.floor(p[1])]
       hoverIsland = app.layout ? islandAt(app.layout, p[0] / app.size, p[1] / app.size) : null
+      if (stroke && last) {
+        stroke.paint.line(last[0], last[1], hover[0], hover[1])
+        last = [...hover]
+        repaint()
+        return
+      }
 
       const l = activeLayer()
       if (!drag || !l) return
@@ -147,7 +224,12 @@
       l.y = Math.round(drag.at[1] + p[1] - drag.from[1])
     })
 
-    el.addEventListener('pointerup', () => (drag = null))
+    el.addEventListener('pointerup', () => {
+      drag = null
+      paintEnd()
+    })
+    el.addEventListener('pointercancel', paintEnd)
+    el.addEventListener('contextmenu', (e) => e.preventDefault())
     el.addEventListener('pointerleave', () => {
       hover = null
       hoverIsland = null
@@ -155,7 +237,7 @@
   }
 </script>
 
-<div class="canvas" class:island={app.canvasTool === 'island'} bind:this={el}>
+<div class="canvas" class:cross={app.canvasTool === 'island' || painting || app.picking} bind:this={el}>
   {#if hover}
     <div class="coords">{hover[0]}, {hover[1]}{hoverIsland !== null ? ` · island ${hoverIsland}` : ''}</div>
   {/if}
@@ -168,7 +250,7 @@
     height: 100%;
     overflow: hidden;
   }
-  .canvas.island {
+  .canvas.cross {
     cursor: crosshair;
   }
   .canvas :global(canvas) {

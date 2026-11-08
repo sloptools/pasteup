@@ -38,6 +38,11 @@ function commit() {
   lastKey = k
 }
 
+// Ends the current step now, so a brush stroke is a step of its own.
+export function checkpoint() {
+  commit()
+}
+
 export function track() {
   $effect.root(() => {
     $effect(() => {

@@ -4,12 +4,15 @@
   import RefSpace from './lib/RefSpace.svelte'
   import Layers from './lib/Layers.svelte'
   import Icon from './lib/Icon.svelte'
-  import { canvasKey, refKey } from './lib/keys'
+  import { canvasKey, layersKey, refKey } from './lib/keys'
   import { addPaths } from './lib/photos'
   import { activeLayer, app, say, sizes } from './lib/state.svelte'
   import { bridge } from './lib/bridge.svelte'
   import { redo, track, undo } from './lib/history.svelte'
-  import { addAdjust, duplicate, move } from './lib/layerOps'
+  import { addAdjust, duplicate, move, newLayer } from './lib/layerOps'
+  import Tools from './lib/Tools.svelte'
+  import ColorPanel from './lib/ColorPanel.svelte'
+  import ToolOptions from './lib/ToolOptions.svelte'
   import { ExportPNG, OpenModel } from '../wailsjs/go/main/App'
   import { OnFileDrop } from '../wailsjs/runtime/runtime'
 
@@ -67,8 +70,20 @@
     }
     if (e.ctrlKey || e.altKey) return
 
-    const handled = app.focus === 'refs' && app.refs !== 'closed' ? refs.key(e) || refKey(e) : canvasKey(e)
+    let handled: boolean
+    if (app.focus === 'refs' && app.refs !== 'closed') handled = refs.key(e) || refKey(e)
+    else if (app.focus === 'layers') handled = layersKey(e)
+    else handled = canvasKey(e)
     if (handled) e.preventDefault()
+  }
+
+  // Buttons never take focus, so keys stay with the regions and Enter can't press one again.
+  function keepFocus(e: PointerEvent) {
+    const target = e.target as HTMLElement
+    if (target.closest('input, select, textarea') || !target.closest('button, [role="button"]')) return
+    e.preventDefault()
+    // What a click elsewhere would do: an open name or number field takes its value.
+    if (document.activeElement instanceof HTMLInputElement) document.activeElement.blur()
   }
 
   // ⌘ keys; layer keys as in Photoshop. True when handled.
@@ -80,6 +95,7 @@
     else if (k === 'e') canvas.merge()
     else if (k === 'j') duplicate()
     else if (k === 'a' && e.shiftKey) addAdjust()
+    else if (k === 'n' && e.shiftKey) newLayer()
     else if (e.code === 'BracketRight') move(1)
     else if (e.code === 'BracketLeft') move(-1)
     else if (k === 'g' && e.altKey) {
@@ -105,7 +121,7 @@
   })
 </script>
 
-<svelte:window onkeydown={onKey} />
+<svelte:window onkeydown={onKey} onpointerdowncapture={keepFocus} />
 
 <div class="shell refs-{app.refs}">
   <header>
@@ -145,15 +161,16 @@
     <div class="bar">
       <button class="icon" title="Show or hide the refs (Tab)" onclick={() => toggleRefs(false)}><Icon name="panel" size={11} /></button>
       <span class="caps">canvas</span>
-      <div class="seg">
-        <button class:on={app.canvasTool === 'move'} onclick={() => (app.canvasTool = 'move')}>move <kbd>V</kbd></button>
-        <button class:on={app.canvasTool === 'island'} onclick={() => (app.canvasTool = 'island')}>island <kbd>I</kbd></button>
-      </div>
+      <ToolOptions />
     </div>
-    <div class="view"><Canvas bind:this={canvas} /></div>
+    <div class="work">
+      <div class="view"><Canvas bind:this={canvas} /></div>
+      <Tools />
+    </div>
   </section>
 
   <aside>
+    <ColorPanel />
     <Layers onmerge={() => canvas.merge()} />
   </aside>
 
@@ -249,13 +266,21 @@
   .view {
     flex: 1;
     min-height: 0;
+    min-width: 0;
+  }
+  .work {
+    flex: 1;
+    min-height: 0;
+    display: flex;
   }
 
   aside {
     grid-area: side;
     background: var(--panel);
     border-left: 1px solid var(--line);
-    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
     padding-top: 4px;
   }
 
@@ -270,55 +295,6 @@
     border-top: 1px solid var(--line);
   }
 
-  .seg {
-    display: flex;
-    padding: 2px;
-    gap: 2px;
-    background: var(--bg);
-    border: 1px solid var(--line);
-    border-radius: 7px;
-    --wails-draggable: no-drag;
-  }
-  .seg button {
-    height: 20px;
-    padding: 0 7px;
-    border: 0;
-    border-radius: 5px;
-    background: none;
-    font: 12px var(--mono);
-    color: var(--dim);
-    display: flex;
-    align-items: center;
-    gap: 5px;
-  }
-  .seg button.on {
-    background: var(--active);
-    color: var(--strong);
-  }
-  .check {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    height: 24px;
-    padding: 0 4px;
-    border: 0;
-    background: none;
-    font: 12px var(--mono);
-    color: var(--dim);
-  }
-  .check .box {
-    width: 9px;
-    height: 9px;
-    border: 1px solid var(--faint);
-    border-radius: 2px;
-  }
-  .check.on {
-    color: var(--fg);
-  }
-  .check.on .box {
-    background: var(--accent);
-    border-color: var(--accent);
-  }
   .icon {
     border: 0;
     padding: 2px;

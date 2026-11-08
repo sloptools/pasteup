@@ -1,5 +1,5 @@
 <script lang="ts">
-  export type Item = { label: string; action: () => void; danger?: boolean }
+  export type Item = { label: string; action: () => void; danger?: boolean; key?: string; disabled?: boolean }
 
   let { x, y, items, onclose }: { x: number; y: number; items: Item[]; onclose: () => void } = $props()
   let el: HTMLDivElement
@@ -21,11 +21,15 @@
   {#each items as item}
     <button
       class:danger={item.danger}
+      disabled={item.disabled}
       onclick={() => {
         onclose()
         item.action()
-      }}>{item.label}</button
+      }}
     >
+      {item.label}
+      {#if item.key}<span class="key mono">{item.key}</span>{/if}
+    </button>
   {/each}
 </div>
 
@@ -43,6 +47,10 @@
     box-shadow: 0 6px 20px rgb(0 0 0 / 0.4);
   }
   button {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
     height: 26px;
     padding: 0 8px;
     border: 0;
@@ -50,7 +58,14 @@
     background: none;
     text-align: left;
   }
-  button:hover {
+  button:disabled {
+    color: var(--faint);
+  }
+  .key {
+    font: 11px var(--mono);
+    color: var(--dim);
+  }
+  button:hover:not(:disabled) {
     background: var(--active);
     color: var(--strong);
   }

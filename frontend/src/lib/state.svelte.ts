@@ -50,7 +50,12 @@ export const neutral: Adjust = { hue: 0, saturation: 0, brightness: 0, black: 0,
 export const blends = ['normal', 'multiply', 'screen', 'overlay', 'add', 'soft-light'] as const
 export type Blend = (typeof blends)[number]
 
-export type Region = 'refs' | 'canvas'
+export type Region = 'refs' | 'canvas' | 'layers'
+
+export type CanvasTool = 'move' | 'island' | 'brush' | 'eraser'
+export type PaintTool = 'brush' | 'eraser'
+export const tips = ['round', 'square'] as const
+export type Tip = (typeof tips)[number]
 
 export const sizes = [128, 256, 512, 1024]
 
@@ -71,7 +76,16 @@ export const app = $state({
   refTool: 'move' as 'move' | 'cut',
   // Cuts become rectangles; off keeps the shape as the photo shows it.
   deskew: true,
-  canvasTool: 'move' as 'move' | 'island',
+  canvasTool: 'move' as CanvasTool,
+  tip: { brush: 'round', eraser: 'square' } as Record<PaintTool, Tip>,
+  // Brush and eraser size in texels.
+  tipSize: { brush: 1, eraser: 4 } as Record<PaintTool, number>,
+  paintOpacity: { brush: 1, eraser: 1 } as Record<PaintTool, number>,
+  // Primary and secondary color; the right mouse button paints with the secondary.
+  colors: ['#a89c88', '#3a342c'] as [string, string],
+  swatches: ['#1c1a17', '#3a342c', '#5e554a', '#857a6a', '#a89c88', '#cfc6b4', '#6b4a32', '#8c6a3c', '#4a5a3a', '#3c4c5c', '#7a3a2a', '#b08a4a'],
+  // The next canvas click picks a color.
+  picking: false,
   status: '',
 })
 

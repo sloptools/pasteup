@@ -1,22 +1,47 @@
 <script lang="ts">
   import Icon from './Icon.svelte'
+  import Slider from './Slider.svelte'
+  import ContextMenu, { type Item } from './ContextMenu.svelte'
   import { activeLayer, app, blends, neutral, removeLayer, type Adjust, type Layer } from './state.svelte'
-  import { addAdjust, duplicate } from './layerOps'
+  import { addAdjust, duplicate, newLayer } from './layerOps'
 
   let { onmerge }: { onmerge: () => void } = $props()
   const active = $derived(activeLayer())
 
-  // Slider ranges and how each value reads.
-  const controls: [keyof Adjust, string, number, number, number, (v: number) => string][] = [
-    ['hue', 'hue', -180, 180, 1, (v) => `${v}`],
-    ['saturation', 'sat', -1, 1, 0.01, (v) => `${Math.round(v * 100)}`],
-    ['brightness', 'bright', -1, 1, 0.01, (v) => `${Math.round(v * 100)}`],
-    ['black', 'black', 0, 1, 1 / 255, (v) => `${Math.round(v * 255)}`],
-    ['gamma', 'gamma', 0.1, 3, 0.01, (v) => v.toFixed(2)],
-    ['white', 'white', 0, 1, 1 / 255, (v) => `${Math.round(v * 255)}`],
+  // Slider ranges and the scale each value reads in.
+  const controls: [keyof Adjust, string, number, number, number, number, number][] = [
+    ['hue', 'hue', -180, 180, 1, 1, 0],
+    ['saturation', 'sat', -1, 1, 0.01, 100, 0],
+    ['brightness', 'bright', -1, 1, 0.01, 100, 0],
+    ['black', 'black', 0, 1, 1 / 255, 255, 0],
+    ['gamma', 'gamma', 0.1, 3, 0.01, 1, 2],
+    ['white', 'white', 0, 1, 1 / 255, 255, 0],
   ]
 
   let armed = $state<string | null>(null)
+  let menu = $state<{ x: number; y: number; items: Item[] } | null>(null)
+
+  // On a row the menu acts on that layer, which becomes active; elsewhere only new layers.
+  function openMenu(e: MouseEvent) {
+    e.preventDefault()
+    const row = (e.target as HTMLElement).closest<HTMLElement>('.row')
+    if (row?.dataset.id) app.active = row.dataset.id
+    const items: Item[] = [
+      { label: 'new layer', key: '⌘⇧N', action: newLayer },
+      { label: 'new adjustment', key: '⌘⇧A', action: addAdjust },
+    ]
+    const l = row && activeLayer()
+    if (l) {
+      const at = app.layers.indexOf(l)
+      items.push(
+        { label: 'rename', key: '↵', action: () => (app.renaming = l.id) },
+        { label: 'duplicate', key: '⌘J', action: duplicate },
+        { label: 'merge down', key: '⌘E', action: onmerge, disabled: at < 1 },
+        { label: 'delete', action: () => removeLayer(l.id), danger: true },
+      )
+    }
+    menu = { x: e.clientX, y: e.clientY, items }
+  }
   let list: HTMLDivElement
   // While a row is dragged: its id and the gap it would drop into, counted from the top.
   let drag = $state<{ id: string; slot: number } | null>(null)
@@ -36,7 +61,7 @@
       let slot = rows.findIndex((r) => m.clientY < r.getBoundingClientRect().top + r.offsetHeight / 2)
       if (slot < 0) slot = rows.length
       const edge = slot < rows.length ? rows[slot].getBoundingClientRect().top : rows[rows.length - 1].getBoundingClientRect().bottom
-      lineY = edge - top
+      lineY = edge - top + list.scrollTop
       drag = { id: l.id, slot }
     }
     const up = () => {
@@ -94,46 +119,13 @@
   }
 </script>
 
-<div class="layers">
-  <div class="head">
-    <span class="caps">layers</span>
-    <button class="text-button" title="Adjustment layer (⌘⇧A)" onclick={addAdjust}>+ adjust</button>
-  </div>
-  {#if active}
-    <div class="props">
-      <select class="mono" title="Blend mode (⇧+ ⇧−)" bind:value={active.blend}>
-        {#each blends as b}<option value={b}>{b}</option>{/each}
-      </select>
-      <label class="opacity mono" title="Opacity (1–9, 0)">
-        <input type="range" min="0" max="1" step="0.01" bind:value={active.opacity} />
-        <span>{Math.round(active.opacity * 100)}</span>
-      </label>
-    </div>
-    {#if active.adjust}
-      {@const adjust = active.adjust}
-      <div class="adjust">
-        {#each controls as [key, label, min, max, step, show]}
-          <label class="slider mono" title="double-click resets">
-            <span class="label">{label}</span>
-            <input type="range" {min} {max} {step} bind:value={adjust[key]} ondblclick={() => (adjust[key] = neutral[key])} />
-            <span class="value">{show(adjust[key])}</span>
-          </label>
-        {/each}
-      </div>
-    {/if}
-    <div class="props">
-      <button class="check" class:on={active.clip} title="Clip to the layer below (⌘⌥G)" onclick={() => (active.clip = !active.clip)}>
-        <span class="box"></span>clip
-      </button>
-      <div class="spacer"></div>
-      <button class="text-button" title="Duplicate (⌘J)" onclick={duplicate}>duplicate</button>
-      <button class="text-button" title="Merge down (⌘E)" onclick={onmerge}>merge</button>
-    </div>
-  {/if}
+<div class="layers" role="presentation" oncontextmenu={openMenu} onpointerdown={() => (app.focus = 'layers')}>
+  <div class="head caps" class:focus={app.focus === 'layers'}>layers</div>
   <div class="list" bind:this={list}>
     {#each app.layers.toReversed() as l (l.id)}
       <div
         class="row"
+        data-id={l.id}
         class:active={l.id === app.active}
         class:dragged={drag?.id === l.id}
         role="button"
@@ -164,10 +156,52 @@
     {/each}
     {#if drag}<div class="line" style:top="{lineY - 1}px"></div>{/if}
   </div>
+  {#if active}
+    <div class="settings">
+      <div class="props">
+        <select class="mono" title="Blend mode (⇧+ ⇧−)" bind:value={active.blend}>
+          {#each blends as b}<option value={b}>{b}</option>{/each}
+        </select>
+        <div class="spacer"></div>
+        <button class="check" class:on={active.clip} title="Clip to the layer below (⌘⌥G)" onclick={() => (active.clip = !active.clip)}>
+          <span class="box"></span>clip
+        </button>
+      </div>
+      <div class="props">
+        <div class="opacity">
+          <Slider bind:value={active.opacity} min={0} max={1} step={0.01} scale={100} title="Opacity (1–9, 0)" />
+        </div>
+      </div>
+      {#if active.adjust}
+        {@const adjust = active.adjust}
+        <div class="adjust">
+          {#each controls as [key, label, min, max, step, scale, decimals]}
+            <Slider bind:value={adjust[key]} {label} {min} {max} {step} {scale} {decimals} reset={neutral[key]} title="double-click resets" />
+          {/each}
+        </div>
+      {/if}
+    </div>
+  {/if}
+  <div class="actions">
+    <button class="icon" title="New layer to paint on (⌘⇧N)" onclick={newLayer}><Icon name="layer" /></button>
+    <button class="icon" title="Adjustment layer (⌘⇧A)" onclick={addAdjust}><Icon name="adjust" /></button>
+    <button class="icon" title="Duplicate (⌘J)" disabled={!active} onclick={duplicate}><Icon name="duplicate" /></button>
+    <button class="icon" title="Merge down (⌘E)" disabled={!active} onclick={onmerge}><Icon name="merge" /></button>
+    <div class="spacer"></div>
+    <button class="icon remove-active" class:armed={active && armed === active.id} title="Delete (Backspace in the canvas)" disabled={!active} onclick={() => active && remove(active.id)}>
+      {#if active && armed === active.id}<span class="mono">delete?</span>{:else}<Icon name="trash" />{/if}
+    </button>
+  </div>
 </div>
+
+{#if menu}
+  <ContextMenu {...menu} onclose={() => (menu = null)} />
+{/if}
 
 <style>
   .layers {
+    flex: 1;
+    min-height: 0;
     display: flex;
     flex-direction: column;
     padding: 0 8px;
@@ -179,45 +213,20 @@
     justify-content: space-between;
     padding: 0 6px;
   }
+  .opacity {
+    flex: 1;
+  }
   .adjust {
+    --label-width: 48px;
     display: grid;
     gap: 2px;
     padding: 0 6px 8px;
-  }
-  .slider {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    height: 22px;
-    font: 12px var(--mono);
-    color: var(--fg);
-  }
-  .slider .label {
-    width: 48px;
-    color: var(--dim);
-  }
-  .slider input {
-    flex: 1;
-    width: 0;
-    min-width: 0;
-    accent-color: var(--dim);
-  }
-  input[type='range']:focus-visible {
-    outline: none;
-  }
-  .slider .value {
-    width: 32px;
-    text-align: right;
   }
   .props {
     display: flex;
     align-items: center;
     gap: 8px;
     padding: 0 6px 8px;
-  }
-  .props:last-of-type {
-    border-bottom: 1px solid var(--line);
-    margin-bottom: 6px;
   }
   .spacer {
     flex: 1;
@@ -232,55 +241,52 @@
     font: 12px var(--mono);
     outline: none;
   }
-  .opacity {
-    flex: 1;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font: 12px var(--mono);
-    color: var(--fg);
-  }
-  .opacity input {
-    flex: 1;
-    width: 0;
-    min-width: 0;
-    accent-color: var(--dim);
-  }
-  .opacity span {
-    width: 24px;
-    text-align: right;
-  }
-  .check {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    height: 24px;
-    padding: 0;
-    border: 0;
-    background: none;
-    font: 12px var(--mono);
-    color: var(--dim);
-  }
-  .check .box {
-    width: 9px;
-    height: 9px;
-    border: 1px solid var(--faint);
-    border-radius: 2px;
-  }
-  .check.on {
-    color: var(--fg);
-  }
-  .check.on .box {
-    background: var(--accent);
-    border-color: var(--accent);
-  }
   .clipped {
     margin-right: -2px;
     font: 11px var(--mono);
     color: var(--dim);
   }
+  .head.focus {
+    color: var(--fg);
+  }
   .list {
     position: relative;
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding-bottom: 6px;
+  }
+  .settings {
+    flex: none;
+    padding-top: 8px;
+    border-top: 1px solid var(--line);
+  }
+  .row:focus {
+    outline: none;
+  }
+  .actions {
+    height: 34px;
+    flex: none;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 0 2px;
+    border-top: 1px solid var(--line);
+  }
+  .actions .icon {
+    padding: 3px;
+    border-radius: 5px;
+  }
+  .actions .icon:hover:not(:disabled) {
+    color: var(--strong);
+    background: var(--hover);
+  }
+  .actions .icon:disabled {
+    color: var(--faint);
+  }
+  .remove-active.armed {
+    color: var(--error);
+    font: 11px var(--mono);
   }
   .line {
     position: absolute;

@@ -13,7 +13,9 @@ export class Composer {
   private adjustPass: AdjustPass
   // Ping-pong pair for laying the layers together.
   private acc: [RenderTexture, RenderTexture]
-  private pieces = new WeakMap<HTMLCanvasElement, Texture>()
+  private pieces = new Map<HTMLCanvasElement, Texture>()
+  // The canvas of a stroke in progress, shown in place of its layer's piece.
+  private live: { id: string; canvas: HTMLCanvasElement; rev: number } | null = null
   private layers = new Map<string, { rt: RenderTexture; sig: string }>()
   private masks = new Map<string, RenderTexture>()
   private layout: Layout | null = null
@@ -82,11 +84,23 @@ export class Composer {
     return rt
   }
 
+  stroke(id: string, canvas: HTMLCanvasElement | null) {
+    this.live = canvas && { id, canvas, rev: 0 }
+  }
+
+  // The stroke's canvas changed.
+  touch() {
+    if (!this.live) return
+    this.live.rev++
+    this.piece(this.live.canvas).source.update()
+  }
+
   // The layer alone, as it lands in the texture.
   layer(l: Layer, layout: Layout | null): RenderTexture {
-    const canvas = l.canvas!
+    const live = this.live?.id === l.id ? this.live : null
+    const canvas = live?.canvas ?? l.canvas!
     const size = this.target.width
-    const sig = [idOf(canvas), l.x, l.y, l.scale, l.turns, l.flipX, l.flipY, l.island, size, layout && idOf(layout)].join()
+    const sig = [idOf(canvas), live?.rev, l.x, l.y, l.scale, l.turns, l.flipX, l.flipY, l.island, size, layout && idOf(layout)].join()
     const entry = this.entry(l.id)
     if (entry.sig === sig) return entry.rt
 
@@ -131,7 +145,7 @@ export class Composer {
       ;[below, next] = [out, below]
     })
     if (!visible.length) this.renderer.render({ container: new Container(), target, clear: true, clearColor: [0, 0, 0, 0] })
-    this.prune(layers)
+    if (target === this.target) this.prune(layers)
   }
 
   private adjusted(l: Layer, below: RenderTexture, layout: Layout | null): RenderTexture {
@@ -142,7 +156,7 @@ export class Composer {
     return entry.rt
   }
 
-  // Drops the textures of layers that are gone.
+  // Drops the textures of layers that are gone, and of pieces only undo still holds.
   private prune(layers: Layer[]) {
     const ids = new Set(layers.map((l) => l.id))
     for (const [id, entry] of this.layers) {
@@ -150,6 +164,24 @@ export class Composer {
       entry.rt.destroy(true)
       this.layers.delete(id)
     }
+
+    const used = new Set(layers.map((l) => l.canvas))
+    if (this.live) used.add(this.live.canvas)
+    for (const [canvas, tex] of this.pieces) {
+      if (used.has(canvas)) continue
+      tex.destroy(true)
+      this.pieces.delete(canvas)
+    }
+  }
+
+  // The composite color at a texel, as #rrggbb, or null where it is empty.
+  pick(x: number, y: number): string | null {
+    const { pixels, width } = this.renderer.extract.pixels(this.target)
+    const o = (y * width + x) * 4
+    const a = pixels[o + 3]
+    if (!a) return null
+    const c = [0, 1, 2].map((i) => Math.min(255, Math.round((pixels[o + i] * 255) / a)))
+    return '#' + c.map((v) => v.toString(16).padStart(2, '0')).join('')
   }
 
   // The given layers laid together, as a canvas at texture size.

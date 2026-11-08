@@ -7,9 +7,11 @@
 | ⌘⇧A | adjustment layer above the active one |
 | ⌘E | merge down |
 | ⌘[, ⌘] | move down, up |
+| ↑, ↓ | select the layer above, below (after a click in the panel; other keys act as in the canvas) |
 | drag in the list | move to the line shown |
+| right click in the panel | new layer or adjustment; on a layer also rename, duplicate, merge, delete |
 | ⌘⌥G | clip to the layer below |
-| 1–9, 0 | opacity 10–90 %, 100 % (canvas) |
+| 1–9, 0 | opacity 10–90 %, 100 % (canvas, except brush and eraser) |
 | ⇧+, ⇧− | next, previous blend mode (canvas) |
 | ⇧ click | select the layer under the cursor (canvas) |
 | Enter, double click | rename |

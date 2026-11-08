@@ -1,4 +1,4 @@
-import { activeLayer, app, blends, removeLayer } from './state.svelte'
+import { activeLayer, app, blends, removeLayer, tips, type PaintTool } from './state.svelte'
 
 // Canvas keys; true when handled. Transforms act on the active layer only.
 export function canvasKey(e: KeyboardEvent): boolean {
@@ -9,19 +9,49 @@ export function canvasKey(e: KeyboardEvent): boolean {
     case 'i':
       app.canvasTool = 'island'
       return true
+    case 'b':
+    case 'e':
+      app.canvasTool = e.key === 'b' ? 'brush' : 'eraser'
+      return true
+    case 'B':
+    case 'E':
+      return cycleTip(e.key === 'B' ? 'brush' : 'eraser')
+    case 'x':
+      app.colors.reverse()
+      return true
     case 'Escape':
+      if (app.picking) {
+        app.picking = false
+        return true
+      }
       if (app.canvasTool === 'move') return false
       app.canvasTool = 'move'
       return true
   }
 
+  // 1 to 9 set the opacity in tens, 0 to full, as in Photoshop: the paint's
+  // with brush and eraser, the layer's otherwise.
+  const digit = /^Digit\d$/.test(e.code) && !e.shiftKey ? Number(e.code.slice(5)) : null
+  const opacity = digit === 0 ? 1 : (digit ?? 0) / 10
+
+  const tool = app.canvasTool
+  if (tool === 'brush' || tool === 'eraser') {
+    if (e.key === '[' || e.key === ']') {
+      const size = app.tipSize[tool] + (e.key === ']' ? 1 : -1)
+      app.tipSize[tool] = Math.min(Math.max(size, 1), 64)
+      return true
+    }
+    if (digit !== null) {
+      app.paintOpacity[tool] = opacity
+      return true
+    }
+  }
+
   const l = activeLayer()
   if (!l) return false
 
-  // 1 to 9 set the opacity in tens, 0 to full, as in Photoshop.
-  if (/^Digit\d$/.test(e.code) && !e.shiftKey) {
-    const d = Number(e.code.slice(5))
-    l.opacity = d === 0 ? 1 : d / 10
+  if (digit !== null) {
+    l.opacity = opacity
     return true
   }
   if (e.key === '+' || e.key === '_' || (e.shiftKey && (e.code === 'Equal' || e.code === 'Minus'))) {
@@ -41,7 +71,7 @@ export function canvasKey(e: KeyboardEvent): boolean {
       return true
   }
 
-  if (!l.canvas) return false
+  if (!l.canvas || tool !== 'move') return false
   switch (e.key) {
     case 'ArrowLeft':
       l.x -= step
@@ -75,6 +105,28 @@ export function canvasKey(e: KeyboardEvent): boolean {
       return true
   }
   return false
+}
+
+// Selects the tool, or its next variant when it is already selected.
+function cycleTip(tool: PaintTool) {
+  if (app.canvasTool === tool) app.tip[tool] = tips[(tips.indexOf(app.tip[tool]) + 1) % tips.length]
+  app.canvasTool = tool
+  return true
+}
+
+// Layer panel keys after a click in it; the rest act as in the canvas.
+export function layersKey(e: KeyboardEvent): boolean {
+  const l = activeLayer()
+  const at = l ? app.layers.indexOf(l) : -1
+  switch (e.key) {
+    case 'ArrowUp':
+    case 'ArrowDown': {
+      const to = at + (e.key === 'ArrowUp' ? 1 : -1)
+      if (at >= 0 && to >= 0 && to < app.layers.length) app.active = app.layers[to].id
+      return true
+    }
+  }
+  return canvasKey(e)
 }
 
 export function refKey(e: KeyboardEvent): boolean {
