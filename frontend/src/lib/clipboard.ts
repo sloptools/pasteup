@@ -1,5 +1,5 @@
 import type { Composer } from './compose'
-import { matrix, settle } from './transform'
+import { box, matrix, settle } from './transform'
 import { activeLayer, addLayer, app, cloneLayer, removeLayer, say, type Layer } from './state.svelte'
 
 let composer: Composer
@@ -80,25 +80,28 @@ function addPiece(name: string, c: NonNullable<typeof clip>, at: number) {
   addLayer({ name, canvas, x: x + canvas.width / 2, y: y + canvas.height / 2, scaleX: 1, scaleY: 1, turns: 0, flipX: false, flipY: false, island: null }, at)
 }
 
-// A new layer above the active one, where the pixels were copied; floating
-// pastes go into the active layer once placed.
-export function paste(floating = false) {
+// Pastes where the pixels were copied, floating above the active layer to be
+// moved and then placed into it; as a layer of its own when asked or without one.
+export function paste(asLayer = false) {
   if (!clip) return false
+  place()
   const into = piece()
   const at = into ? app.layers.indexOf(into) + 1 : app.layers.length
+  const floating = !asLayer && into
   addPiece(floating ? 'floating' : 'pasted', clip, at)
   app.canvasTool = 'move'
-  if (floating && into) {
+  if (floating) {
     app.floating = { id: app.active!, into: into.id, restore: null }
-    say('floating: Enter places it, Esc discards it')
+    say('floating: move it, Enter or the next action places it, Esc discards it')
   }
   return true
 }
 
 // Lifts the selected pixels of the active layer into a floating layer, to transform them.
 export function lift() {
+  place()
   const l = piece()
-  if (!app.selection || !l || app.floating) return false
+  if (!app.selection || !l) return false
   const restore = cloneLayer(l)
   const lifted = crop(texels(l))
   clear()
@@ -117,6 +120,11 @@ export function place() {
   app.floating = null
   say('')
   if (!float || !into?.canvas) return
+  // The next paste starts where this one went, so rows of copies come easily.
+  if (clip && !f.restore) {
+    const b = box(float)
+    clip = { ...clip, x: Math.round(b.x), y: Math.round(b.y) }
+  }
   into.canvas = intoPiece(into, texels(float), 'source-over')
   removeLayer(float.id)
   app.active = into.id

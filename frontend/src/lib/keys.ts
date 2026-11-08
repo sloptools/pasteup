@@ -1,10 +1,11 @@
-import { activeLayer, app, blends, removeLayer, selectModes, tips, type CanvasTool, type PaintTool } from './state.svelte'
-import { clear, lift } from './clipboard'
+import { activeLayer, app, blends, removeLayer, selectModes, shapes, tips, colorTools, type CanvasTool, type ColorTool, type PaintTool } from './state.svelte'
+import { clear, lift, place } from './clipboard'
 import { flip, scaleBy, turn } from './transform'
 
 // Picks a tool; the transform tool first lifts a selection into a floating layer.
 export function useTool(tool: CanvasTool) {
   if (tool === 'transform') lift()
+  else if (tool !== 'move') place()
   app.canvasTool = tool
 }
 
@@ -12,27 +13,37 @@ export function useTool(tool: CanvasTool) {
 export function canvasKey(e: KeyboardEvent): boolean {
   switch (e.key) {
     case 'v':
-      app.canvasTool = 'move'
+      useTool('move')
       return true
     case 'i':
-      app.canvasTool = 'island'
+      useTool('island')
       return true
     case 't':
       useTool('transform')
       return true
+    case 'g':
+      useTool('fill')
+      return true
+    case 'u':
+      useTool('shape')
+      return true
+    case 'U':
+      if (app.canvasTool === 'shape') app.shape = shapes[(shapes.indexOf(app.shape) + 1) % shapes.length]
+      useTool('shape')
+      return true
     case 'b':
     case 'e':
-      app.canvasTool = e.key === 'b' ? 'brush' : 'eraser'
+      useTool(e.key === 'b' ? 'brush' : 'eraser')
       return true
     case 'B':
     case 'E':
       return cycleTip(e.key === 'B' ? 'brush' : 'eraser')
     case 'm':
-      app.canvasTool = 'select'
+      useTool('select')
       return true
     case 'M':
       if (app.canvasTool === 'select') app.selectMode = selectModes[(selectModes.indexOf(app.selectMode) + 1) % selectModes.length]
-      app.canvasTool = 'select'
+      useTool('select')
       return true
     case 'x':
       app.colors.reverse()
@@ -53,8 +64,8 @@ export function canvasKey(e: KeyboardEvent): boolean {
     return true
   }
 
-  // 1 to 9 set the opacity in tens, 0 to full, as in Photoshop: the paint's
-  // with brush and eraser, the layer's otherwise.
+  // 1 to 9 set the opacity in tens, 0 to full, as in Photoshop: the color
+  // tool's with one of them, the layer's otherwise.
   const digit = /^Digit\d$/.test(e.code) && !e.shiftKey ? Number(e.code.slice(5)) : null
   const opacity = digit === 0 ? 1 : (digit ?? 0) / 10
 
@@ -65,10 +76,14 @@ export function canvasKey(e: KeyboardEvent): boolean {
       app.tipSize[tool] = Math.min(Math.max(size, 1), 64)
       return true
     }
-    if (digit !== null) {
-      app.paintOpacity[tool] = opacity
-      return true
-    }
+  }
+  if (tool === 'shape' && (e.key === '[' || e.key === ']')) {
+    app.shapeWidth = Math.min(Math.max(app.shapeWidth + (e.key === ']' ? 1 : -1), 1), 32)
+    return true
+  }
+  if (colorTools.includes(tool) && digit !== null) {
+    app.paintOpacity[tool as ColorTool] = opacity
+    return true
   }
 
   const l = activeLayer()
@@ -132,7 +147,7 @@ export function canvasKey(e: KeyboardEvent): boolean {
 // Selects the tool, or its next variant when it is already selected.
 function cycleTip(tool: PaintTool) {
   if (app.canvasTool === tool) app.tip[tool] = tips[(tips.indexOf(app.tip[tool]) + 1) % tips.length]
-  app.canvasTool = tool
+  useTool(tool)
   return true
 }
 

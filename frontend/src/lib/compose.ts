@@ -2,7 +2,7 @@ import { CanvasSource, Container, Graphics, RenderTexture, Sprite, Texture, type
 import { AdjustPass } from './adjust'
 import { BlendPass } from './blend'
 import { eachFace } from './uv'
-import { matrix, place } from './transform'
+import { exact, matrix, place, raster } from './transform'
 import type { Layer, Layout } from './state.svelte'
 
 // Each layer is drawn into a texture of its own at texture size, transformed and
@@ -14,8 +14,8 @@ export class Composer {
   private adjustPass: AdjustPass
   // Ping-pong pair for laying the layers together.
   private acc: [RenderTexture, RenderTexture]
-  // Per piece a smooth, mipmapped texture for shrinking and a crisp one for growing.
-  private pieces = new Map<HTMLCanvasElement, { smooth?: Texture; crisp?: Texture }>()
+  // Pieces land one pixel per texel (see raster), so their textures are always crisp.
+  private pieces = new Map<HTMLCanvasElement, Texture>()
   // The canvas of a stroke in progress, shown in place of its layer's piece.
   private live: { id: string; canvas: HTMLCanvasElement; rev: number } | null = null
   private layers = new Map<string, { rt: RenderTexture; sig: string }>()
@@ -48,11 +48,18 @@ export class Composer {
     this.masks.clear()
   }
 
-  piece(canvas: HTMLCanvasElement, crisp = false): Texture {
-    let entry = this.pieces.get(canvas)
-    if (!entry) this.pieces.set(canvas, (entry = {}))
-    if (crisp) return (entry.crisp ??= new Texture({ source: new CanvasSource({ resource: canvas, scaleMode: 'nearest' }) }))
-    return (entry.smooth ??= new Texture({ source: new CanvasSource({ resource: canvas, autoGenerateMipmaps: true }) }))
+  piece(canvas: HTMLCanvasElement): Texture {
+    let tex = this.pieces.get(canvas)
+    if (!tex) {
+      tex = new Texture({ source: new CanvasSource({ resource: canvas, scaleMode: 'nearest' }) })
+      this.pieces.set(canvas, tex)
+    }
+    return tex
+  }
+
+  // What shows of a layer: its pixels when they land one per texel, else its raster.
+  private shown(l: Layer, canvas: HTMLCanvasElement) {
+    return canvas !== l.canvas || exact(l) ? canvas : raster(l).canvas
   }
 
   private entry(id: string) {
@@ -92,9 +99,7 @@ export class Composer {
   touch() {
     if (!this.live) return
     this.live.rev++
-    const entry = this.pieces.get(this.live.canvas)
-    entry?.smooth?.source.update()
-    entry?.crisp?.source.update()
+    this.pieces.get(this.live.canvas)?.source.update()
   }
 
   // The layer alone, as it lands in the texture.
@@ -107,8 +112,10 @@ export class Composer {
     if (entry.sig === sig) return entry.rt
 
     const scene = new Container()
-    const sprite = new Sprite(this.piece(canvas, l.scaleX >= 1 && l.scaleY >= 1))
-    place(sprite, l)
+    const shown = this.shown(l, canvas)
+    const sprite = new Sprite(this.piece(shown))
+    if (shown === canvas) place(sprite, l)
+    else sprite.position.set(raster(l).x, raster(l).y)
     scene.addChild(sprite)
     if (l.island !== null && layout) {
       const mask = new Graphics()
@@ -167,12 +174,11 @@ export class Composer {
       this.layers.delete(id)
     }
 
-    const used = new Set(layers.map((l) => l.canvas))
+    const used = new Set(layers.filter((l) => l.canvas).map((l) => this.shown(l, l.canvas!)))
     if (this.live) used.add(this.live.canvas)
-    for (const [canvas, entry] of this.pieces) {
+    for (const [canvas, tex] of this.pieces) {
       if (used.has(canvas)) continue
-      entry.smooth?.destroy(true)
-      entry.crisp?.destroy(true)
+      tex.destroy(true)
       this.pieces.delete(canvas)
     }
   }

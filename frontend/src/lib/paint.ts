@@ -66,6 +66,25 @@ export class Stroke {
     if (o.selection) this.kept = blank(size, size)
   }
 
+  // A row of texels, for shapes.
+  span(x: number, y: number, w: number) {
+    this.paint.fillRect(x, y, w, 1)
+  }
+
+  // A texel mask drawn in, for fills; it takes the stroke's color.
+  stamp(mask: HTMLCanvasElement) {
+    const p = this.paint
+    p.drawImage(mask, 0, 0)
+    p.globalCompositeOperation = 'source-in'
+    p.fillRect(0, 0, this.mask.width, this.mask.height)
+    p.globalCompositeOperation = 'source-over'
+  }
+
+  // Starts the mask over, for shapes redrawn while dragging.
+  reset() {
+    this.paint.clearRect(0, 0, this.mask.width, this.mask.height)
+  }
+
   dot(x: number, y: number) {
     for (const [dy, dx, w] of this.rows) this.paint.fillRect(x + dx, y + dy, w, 1)
   }

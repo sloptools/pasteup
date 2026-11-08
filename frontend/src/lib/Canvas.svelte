@@ -5,14 +5,15 @@
   import { Composer, hits } from './compose'
   import { settle, box, cursors, fit as fitBox, handleAt, handles, hit, matrix, place, resize, type Box, type Handle } from './transform'
   import { edges, eachFace, islandAt } from './uv'
-  import { activeLayer, app, cloneLayer, say, type PaintTool } from './state.svelte'
+  import { activeLayer, app, cloneLayer, colorTools, say, type ColorTool, type PaintTool } from './state.svelte'
   import { bridge } from './bridge.svelte'
   import { mergeDown, newLayer } from './layerOps'
   import { footprint, Stroke } from './paint'
+  import { ellipse, flood, rect } from './shapes'
   import { checkpoint } from './history.svelte'
   import { Marquee } from './marquee'
   import { combine, selection, type Combine } from './selection'
-  import { useComposer } from './clipboard'
+  import { place as clipPlace, useComposer } from './clipboard'
 
   let el: HTMLDivElement
   let view: View
@@ -31,7 +32,10 @@
   const marquee = new Marquee()
   let stopAnts = () => {}
 
-  const painting = $derived(app.canvasTool === 'brush' || app.canvasTool === 'eraser')
+  const painting = $derived(colorTools.includes(app.canvasTool))
+  const brushing = $derived(app.canvasTool === 'brush' || app.canvasTool === 'eraser')
+  // Where a shape drag started.
+  let shapeFrom: [number, number] | null = null
   let stroke: { layer: string; paint: Stroke } | null = null
   // Where the last stroke ended, for Shift-click lines.
   let last: [number, number] | null = null
@@ -150,7 +154,7 @@
   $effect(() => {
     if (!ready) return
     tip.clear()
-    if (painting && hover) {
+    if (brushing && hover) {
       const tool = app.canvasTool as PaintTool
       for (const [dy, dx, w] of footprint(app.tipSize[tool], app.tip[tool])) tip.rect(hover[0] + dx, hover[1] + dy, w, 1)
       tip.fill(tool === 'brush' ? { color: app.colors[0], alpha: 0.7 } : { color: 0xebe8df, alpha: 0.35 })
@@ -201,11 +205,14 @@
   }
 
   function paintStart(e: PointerEvent, x: number, y: number) {
-    const tool = app.canvasTool as PaintTool
-    if (e.altKey) return pickColor(e, x, y)
+    const tool = app.canvasTool as ColorTool
+    const brush = tool === 'brush' || tool === 'eraser'
+    // Alt picks a color, except with shapes, where it draws from the center.
+    if (e.altKey && tool !== 'shape') return pickColor(e, x, y)
 
+    clipPlace()
     checkpoint()
-    if (!activeLayer() && tool === 'brush') newLayer()
+    if (!activeLayer() && tool !== 'eraser') newLayer()
     const l = activeLayer()
     if (!l) return
     if (!l.canvas) return say('adjustment layers take no paint')
@@ -213,18 +220,52 @@
 
     const paint = new Stroke(l.canvas, matrix(l).inverse(), app.size, {
       color: app.colors[e.button === 2 ? 1 : 0],
-      tipSize: app.tipSize[tool],
-      tip: app.tip[tool],
+      tipSize: brush ? app.tipSize[tool] : 1,
+      tip: brush ? app.tip[tool] : 'square',
       erase: tool === 'eraser',
       opacity: app.paintOpacity[tool],
       selection: app.selection?.canvas ?? null,
     })
+    // Colors to fill by, read before the stroke stands in for the layer.
+    const sample = tool === 'fill' ? composer.canvas(app.fill.merged ? composer.target : composer.layer(l, app.layout)) : null
     stroke = { layer: l.id, paint }
-    composer.stroke(l.id, stroke.paint.canvas)
-    if (e.shiftKey && last) stroke.paint.line(last[0], last[1], x, y)
-    else stroke.paint.dot(x, y)
-    last = [x, y]
+    composer.stroke(l.id, paint.canvas)
     el.setPointerCapture(e.pointerId)
+
+    if (sample) {
+      const pixels = sample.getContext('2d')!.getImageData(0, 0, app.size, app.size).data
+      const mask = selection(flood(pixels, app.size, x, y, app.fill.tolerance, app.fill.contiguous), app.size)
+      if (mask) paint.stamp(mask.canvas)
+      repaint()
+      return paintEnd()
+    }
+    if (tool === 'shape') {
+      shapeFrom = [x, y]
+      return drawShape([x, y], e)
+    }
+    if (e.shiftKey && last) paint.line(last[0], last[1], x, y)
+    else paint.dot(x, y)
+    last = [x, y]
+    repaint()
+  }
+
+  // The shape from where the drag started to p: ⇧ squares it, ⌥ centers it on the start.
+  function drawShape(p: [number, number], e: PointerEvent) {
+    if (!stroke || !shapeFrom) return
+    const [fx, fy] = shapeFrom
+    let dx = p[0] - fx
+    let dy = p[1] - fy
+    if (e.shiftKey) {
+      const d = Math.max(Math.abs(dx), Math.abs(dy))
+      dx = Math.sign(dx || 1) * d
+      dy = Math.sign(dy || 1) * d
+    }
+    const a: [number, number] = e.altKey ? [fx - dx, fy - dy] : [fx, fy]
+    const b: [number, number] = [fx + dx, fy + dy]
+    const [kind, filled] = app.shape.split(' ')
+    const paint = stroke.paint
+    paint.reset()
+    ;(kind === 'rect' ? rect : ellipse)(a, b, filled === 'filled', app.shapeWidth, (x, y, w) => paint.span(x, y, w))
     repaint()
   }
 
@@ -235,6 +276,7 @@
   }
 
   function paintEnd() {
+    shapeFrom = null
     if (!stroke) return
     const l = app.layers.find((l) => l.id === stroke!.layer)
     if (l) l.canvas = stroke.paint.canvas
@@ -256,6 +298,7 @@
       if (app.picking) return pickColor(e, Math.floor(p[0]), Math.floor(p[1]))
       if (painting) return paintStart(e, Math.floor(p[0]), Math.floor(p[1]))
       if (app.canvasTool === 'select') {
+        clipPlace()
         combining = e.shiftKey ? 'add' : e.altKey ? 'subtract' : 'replace'
         marquee.start(app.selectMode, p)
         el.setPointerCapture(e.pointerId)
@@ -291,6 +334,7 @@
       const p = texel(e)
       hover = [Math.floor(p[0]), Math.floor(p[1])]
       hoverIsland = app.layout ? islandAt(app.layout, p[0] / app.size, p[1] / app.size) : null
+      if (stroke && shapeFrom) return drawShape(hover, e)
       if (stroke && last) {
         stroke.paint.line(last[0], last[1], hover[0], hover[1])
         last = [...hover]

@@ -4,7 +4,7 @@
   import Icon from './Icon.svelte'
   import { discard, place } from './clipboard'
   import { box, fit, flip, turn } from './transform'
-  import { activeLayer, app, selectModes, tips, type Layer, type Tip } from './state.svelte'
+  import { activeLayer, app, selectModes, shapes, tips, type Layer, type Tip } from './state.svelte'
 
   const turns: [() => void, string, 'rotate' | 'flip', string][] = [
     [() => withLayer((l) => turn(l, -1)), 'Rotate 90° counter-clockwise (⇧R)', 'rotate', 'mirror'],
@@ -95,6 +95,25 @@
     </div>
     <Slider bind:value={app.tipSize[tool]} label="size" min={1} max={64} step={1} title="Size in texels ([ ])" />
     <Slider bind:value={app.paintOpacity[tool]} label="opacity" min={0.01} max={1} step={0.01} scale={100} title="Opacity (1–9, 0)" />
+  {:else if app.canvasTool === 'fill'}
+    <Slider bind:value={app.fill.tolerance} label="tolerance" min={0} max={255} step={1} title="How far colors may differ, 0–255" />
+    <button class="check" class:on={app.fill.contiguous} title="Only texels touching the clicked one" onclick={() => (app.fill.contiguous = !app.fill.contiguous)}>
+      <span class="box"></span>contiguous
+    </button>
+    <button class="check" class:on={app.fill.merged} title="Compare colors of all visible layers, not just the active one" onclick={() => (app.fill.merged = !app.fill.merged)}>
+      <span class="box"></span>all
+    </button>
+    <Slider bind:value={app.paintOpacity.fill} label="opacity" min={0.01} max={1} step={0.01} scale={100} title="Opacity (1–9, 0)" />
+  {:else if app.canvasTool === 'shape'}
+    <div class="seg">
+      {#each shapes as shape}
+        <button class:on={app.shape === shape} title="{shape} (⇧U)" onclick={() => (app.shape = shape)}><Icon name={shape} size={11} /></button>
+      {/each}
+    </div>
+    {#if !app.shape.endsWith('filled')}
+      <Slider bind:value={app.shapeWidth} label="width" min={1} max={32} step={1} title="Outline width in texels ([ ])" />
+    {/if}
+    <Slider bind:value={app.paintOpacity.shape} label="opacity" min={0.01} max={1} step={0.01} scale={100} title="Opacity (1–9, 0)" />
   {:else if app.canvasTool === 'select'}
     <div class="seg">
       {#each selectModes as mode}
@@ -132,13 +151,22 @@
 
 <style>
   .options {
-    --range-flex: none;
-    --range-width: 90px;
+    --range-flex: 0 1 90px;
+    --range-width: auto;
     flex: 1;
     min-width: 0;
     display: flex;
     align-items: center;
-    gap: 16px;
+    gap: 14px;
+    overflow: hidden;
+    white-space: nowrap;
+  }
+  .options > :global(*) {
+    flex-shrink: 0;
+  }
+  .options > :global(.slider) {
+    flex-shrink: 1;
+    min-width: 0;
   }
   .tips {
     position: relative;

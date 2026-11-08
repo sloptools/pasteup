@@ -54,10 +54,15 @@ export type Blend = (typeof blends)[number]
 
 export type Region = 'refs' | 'canvas' | 'layers'
 
-export type CanvasTool = 'move' | 'transform' | 'island' | 'select' | 'brush' | 'eraser'
+export type CanvasTool = 'move' | 'transform' | 'island' | 'select' | 'brush' | 'eraser' | 'fill' | 'shape'
 export const selectModes = ['rect', 'lasso'] as const
 export type SelectMode = (typeof selectModes)[number]
 export type PaintTool = 'brush' | 'eraser'
+// Tools that lay color into the active layer, each with its own opacity.
+export type ColorTool = PaintTool | 'fill' | 'shape'
+export const colorTools: CanvasTool[] = ['brush', 'eraser', 'fill', 'shape']
+export const shapes = ['rect', 'rect filled', 'ellipse', 'ellipse filled'] as const
+export type Shape = (typeof shapes)[number]
 export const tips = ['round', 'square'] as const
 export type Tip = (typeof tips)[number]
 
@@ -84,7 +89,12 @@ export const app = $state({
   tip: { brush: 'round', eraser: 'square' } as Record<PaintTool, Tip>,
   // Brush and eraser size in texels.
   tipSize: { brush: 1, eraser: 4 } as Record<PaintTool, number>,
-  paintOpacity: { brush: 1, eraser: 1 } as Record<PaintTool, number>,
+  paintOpacity: { brush: 1, eraser: 1, fill: 1, shape: 1 } as Record<ColorTool, number>,
+  // Fill: how far colors may differ, only touching texels, sampling all visible layers.
+  fill: { tolerance: 0, contiguous: true, merged: false },
+  shape: 'rect' as Shape,
+  // Outline width in texels.
+  shapeWidth: 1,
   // Primary and secondary color; the right mouse button paints with the secondary.
   colors: ['#a89c88', '#3a342c'] as [string, string],
   swatches: ['#1c1a17', '#3a342c', '#5e554a', '#857a6a', '#a89c88', '#cfc6b4', '#6b4a32', '#8c6a3c', '#4a5a3a', '#3c4c5c', '#7a3a2a', '#b08a4a'],

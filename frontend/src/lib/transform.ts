@@ -103,26 +103,47 @@ export function resize(from: Box, h: Handle, x: number, y: number, keep: boolean
 
 export const cursors: Record<string, string> = { '-1,-1': 'nwse-resize', '1,1': 'nwse-resize', '1,-1': 'nesw-resize', '-1,1': 'nesw-resize', '-1,0': 'ew-resize', '1,0': 'ew-resize', '0,-1': 'ns-resize', '0,1': 'ns-resize' }
 
-// Redraws a scaled or stretched layer at one pixel per texel, in place and at its
-// size, so painting on it is texel exact. True when it changed.
-export function settle(l: Layer): boolean {
+// Whether the layer's pixels already land one per texel.
+export function exact(l: Layer) {
   const b = box(l)
-  if (l.scaleX === 1 && l.scaleY === 1 && Number.isInteger(b.x) && Number.isInteger(b.y)) return false
+  return l.scaleX === 1 && l.scaleY === 1 && Number.isInteger(b.x) && Number.isInteger(b.y)
+}
 
+type Raster = { sig: string; canvas: HTMLCanvasElement; x: number; y: number }
+const rasters = new WeakMap<HTMLCanvasElement, Raster>()
+
+// The layer drawn at one pixel per texel, at its place, from its source pixels:
+// crisp when grown, smooth when shrunk. The source stays, so transforms redraw
+// from it and never lose sharpness.
+export function raster(l: Layer): Raster {
+  const source = l.canvas!
+  const sig = [l.x, l.y, l.scaleX, l.scaleY, l.turns, l.flipX, l.flipY].join()
+  const cached = rasters.get(source)
+  if (cached?.sig === sig) return cached
+
+  const b = box(l)
   const x = Math.round(b.x)
   const y = Math.round(b.y)
   const canvas = document.createElement('canvas')
   canvas.width = Math.max(1, Math.round(b.w))
   canvas.height = Math.max(1, Math.round(b.h))
   const ctx = canvas.getContext('2d')!
-  // As the canvas shows it: crisp when grown, smooth when shrunk.
   ctx.imageSmoothingEnabled = l.scaleX < 1 || l.scaleY < 1
   ctx.imageSmoothingQuality = 'high'
   ctx.setTransform(new DOMMatrix().translate(-x, -y).multiply(matrix(l)))
-  ctx.drawImage(l.canvas!, 0, 0)
+  ctx.drawImage(source, 0, 0)
 
-  Object.assign(l, { canvas, scaleX: 1, scaleY: 1, turns: 0, flipX: false, flipY: false })
-  l.x = x + canvas.width / 2
-  l.y = y + canvas.height / 2
+  const r = { sig, canvas, x, y }
+  rasters.set(source, r)
+  return r
+}
+
+// Makes the layer's texels its source, before pixels are changed in it. True when it changed.
+export function settle(l: Layer): boolean {
+  if (exact(l)) return false
+  const r = raster(l)
+  Object.assign(l, { canvas: r.canvas, scaleX: 1, scaleY: 1, turns: 0, flipX: false, flipY: false })
+  l.x = r.x + r.canvas.width / 2
+  l.y = r.y + r.canvas.height / 2
   return true
 }

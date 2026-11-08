@@ -1,7 +1,7 @@
 <script lang="ts">
   import Icon, { type IconName } from './Icon.svelte'
   import { useTool } from './keys'
-  import { app, selectModes, tips, type CanvasTool, type PaintTool, type SelectMode, type Tip } from './state.svelte'
+  import { app, selectModes, shapes, tips, type CanvasTool, type PaintTool, type SelectMode, type Shape, type Tip } from './state.svelte'
 
   type Variants = { options: readonly string[]; get: () => string; set: (v: string) => void }
   type Tool = { id: CanvasTool; label: string; key: string; icon: () => IconName; variants?: Variants }
@@ -21,6 +21,14 @@
     },
     { id: 'brush', label: 'brush', key: 'B', icon: () => 'brush', variants: tipsOf('brush') },
     { id: 'eraser', label: 'eraser', key: 'E', icon: () => 'eraser', variants: tipsOf('eraser') },
+    { id: 'fill', label: 'fill', key: 'G', icon: () => 'fill' },
+    {
+      id: 'shape',
+      label: 'shape',
+      key: 'U',
+      icon: () => app.shape,
+      variants: { options: shapes, get: () => app.shape, set: (v) => (app.shape = v as Shape) },
+    },
   ]
 
   // The tool whose tip shows, after a short rest on its button.
