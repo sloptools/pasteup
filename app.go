@@ -124,7 +124,7 @@ func (a *App) OpenPhotos() ([]string, error) {
 
 var imageExt = map[string]bool{".png": true, ".jpg": true, ".jpeg": true, ".webp": true}
 
-// GrungeMaps lists the grunge maps in the grunge folder, served at /grunge?name=.
+// GrungeMaps lists the built-in grunge maps, then the ones in the grunge folder, served at /grunge?name=.
 func (a *App) GrungeMaps() []string {
 	dir, err := grunge.Dir()
 	if err != nil {
@@ -156,15 +156,14 @@ func (a *App) middleware(next http.Handler) http.Handler {
 			return
 		}
 		if r.URL.Path == "/grunge" {
-			dir, err := grunge.Dir()
-			if err == nil {
-				var file string
-				if file, err = grunge.Path(dir, r.URL.Query().Get("name")); err == nil {
-					http.ServeFile(w, r, file)
-					return
-				}
+			dir, _ := grunge.Dir()
+			data, err := grunge.PNG(dir, r.URL.Query().Get("name"))
+			if err != nil {
+				http.Error(w, "no such map", http.StatusNotFound)
+				return
 			}
-			http.Error(w, "no such map", http.StatusNotFound)
+			w.Header().Set("Content-Type", "image/png")
+			w.Write(data)
 			return
 		}
 		if r.URL.Path != "/photo" {

@@ -1,7 +1,7 @@
 import { GrungeMaps } from '../../wailsjs/go/main/App'
 
-// A layer's grunge mask: where its pixels show. Map is a generated one or one of
-// the maps in the grunge folder; scale is repeats across the texture (noise: block size in
+// A layer's grunge mask: where its pixels show. Map is a generated one, a built-in
+// one or one from the grunge folder; scale is repeats across the texture (noise: block size in
 // texels), level shifts how much shows, contrast hardens the edges. Stretch pulls
 // the map down (above 1) or across (below -1), for streaks and runs.
 export type Mask = { map: string; scale: number; stretch: number; level: number; contrast: number; seed: number; invert: boolean }
@@ -19,7 +19,7 @@ function stretched(m: Mask): [number, number] {
   return s > 1 ? [1, s] : s < -1 ? [-s, 1] : [1, 1]
 }
 
-// Names of the maps in the grunge folder; loaded counts maps that arrived, so masks redraw.
+// Names of the built-in maps, then the grunge folder's; loaded counts maps that arrived, so masks redraw.
 export const grunge = $state({ names: [] as string[], loaded: 0 })
 
 export function loadNames() {

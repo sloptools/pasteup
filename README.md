@@ -37,7 +37,7 @@ Install `tools/blender/pasteup_bridge.py` via Preferences › Add-ons › Instal
 
 ## Grunge maps
 
-pasteup ships only generated noise and clouds. Drop your own square, tileable gray maps (white = dirt, PNG or JPG) into `~/Library/Application Support/pasteup/grunge`; **maps folder…** in a grunge mask's map list opens it.
+Built in: noise, clouds, blotches, grime, specks, streaks, scratches and lines, all made from noise, so they tile. Drop your own square, tileable gray maps (white = dirt, PNG or JPG) into `~/Library/Application Support/pasteup/grunge`; **maps folder…** in a grunge mask's map list opens it.
 
 ## License
 

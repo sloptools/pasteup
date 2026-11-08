@@ -31,13 +31,13 @@ Switching the texture size (header) scales every layer along, so the texture kee
 
 ## Grunge masks
 
-Your own grunge maps go into the grunge folder (**maps folder…** at the end of the map list; on a Mac `~/Library/Application Support/pasteup/grunge`): square grays, white = dirt, tileable at best, as PNG or JPG. The file name is the map's name. None come with pasteup.
+Your own grunge maps go into the grunge folder (**maps folder…** at the end of the map list; on a Mac `~/Library/Application Support/pasteup/grunge`): square grays, white = dirt, tileable at best, as PNG or JPG. The file name is the map's name; one named like a built-in map takes its place.
 
 Every layer can take a grunge mask (+ grunge in its settings, the bin removes it, right-click too): it shows only where the mask does. The grunge layer button makes a color layer with one, for dirt, rust and grime.
 
 | Setting | Effect |
 |---|---|
-| map | noise (chunky blocks), clouds (soft), or a map from the grunge folder |
+| map | noise (chunky blocks), clouds (soft), blotches, grime, specks, streaks, scratches, lines, or a map from the grunge folder |
 | scale | repeats across the texture; noise: block size in texels |
 | stretch | pulls the map down (2 to 8) or across (−2 to −8), for streaks and runs |
 | level | how much shows |
