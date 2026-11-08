@@ -109,12 +109,6 @@
     armed = null
   }
 
-  function addMenu(e: MouseEvent) {
-    const items: Item[] = channels.filter((ch) => !present().includes(ch)).map((ch) => ({ label: ch, action: () => show(ch) }))
-    const r = (e.currentTarget as HTMLElement).getBoundingClientRect()
-    menu = { x: r.left, y: r.bottom + 4, items }
-  }
-
   function channelMenu(e: MouseEvent, ch: Channel) {
     e.preventDefault()
     e.stopPropagation()
@@ -160,12 +154,17 @@
 
 <div class="layers" role="presentation" oncontextmenu={openMenu} onpointerdown={() => (app.focus = 'layers')}>
   <div class="head" class:focus={app.focus === 'layers'}>
-    {#each present() as ch, i}
-      <button class="tab caps" class:on={app.channel === ch} title="{ch} (⌘{i + 1}); right-click for more" onclick={() => show(ch)} oncontextmenu={(e) => channelMenu(e, ch)}>{short[ch]}</button>
+    {#each channels as ch, i}
+      {@const there = present().includes(ch)}
+      <button
+        class="tab caps"
+        class:on={app.channel === ch}
+        class:absent={!there}
+        title={there ? `${ch} (⌘${i + 1}); right-click for more` : `add ${ch} (⌘⇧${i + 1})`}
+        onclick={() => show(ch)}
+        oncontextmenu={(e) => there && channelMenu(e, ch)}>{short[ch]}</button
+      >
     {/each}
-    {#if present().length < channels.length}
-      <button class="tab add caps" title="Another texture channel" onclick={(e) => addMenu(e)}>+</button>
-    {/if}
   </div>
   {#if present().length > 1}
     <div class="channel-row">
@@ -510,6 +509,12 @@
   .tab.on {
     background: var(--active);
     color: var(--strong);
+  }
+  .tab.absent {
+    color: var(--faint);
+  }
+  .tab.absent:hover {
+    color: var(--dim);
   }
   .channel-row {
     display: flex;

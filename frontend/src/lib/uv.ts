@@ -1,27 +1,31 @@
 import type { Layout } from './state.svelte'
 
-// Unique face edges in UV space, four numbers each: island outlines (edges of
-// one face of their island) and the edges inside islands. Counted per island, so
-// islands stacked on each other keep their outlines.
+// Unique face edges in UV space, four numbers each: island outlines and the edges
+// inside islands. An edge is inside only with faces on both of its sides, so faces
+// stacked on each other, which lie on the same side, keep their outlines.
 export function edges(layout: Layout): { outline: number[]; inside: number[] } {
-  const found = new Map<string, { at: number[]; faces: number }>()
+  const found = new Map<string, { at: number[]; sides: number }>()
   const uv = layout.uvs
   for (let t = 0; t < uv.length; t += 6) {
-    const island = layout.islands[t / 6]
     for (let c = 0; c < 3; c++) {
-      const a = t + c * 2
-      const b = t + ((c + 1) % 3) * 2
+      let a = t + c * 2
+      let b = t + ((c + 1) % 3) * 2
+      const o = t + ((c + 2) % 3) * 2
       const ka = `${uv[a]},${uv[a + 1]}`
       const kb = `${uv[b]},${uv[b + 1]}`
-      const key = island + ':' + (ka < kb ? ka + ' ' + kb : kb + ' ' + ka)
+      if (kb < ka) [a, b] = [b, a]
+      const key = kb < ka ? kb + ' ' + ka : ka + ' ' + kb
+      // Which side of the edge, taken one fixed way round, the face's third corner is on.
+      const cross = (uv[b] - uv[a]) * (uv[o + 1] - uv[a + 1]) - (uv[b + 1] - uv[a + 1]) * (uv[o] - uv[a])
+      const side = cross > 0 ? 1 : cross < 0 ? 2 : 0
       const e = found.get(key)
-      if (e) e.faces++
-      else found.set(key, { at: [uv[a], uv[a + 1], uv[b], uv[b + 1]], faces: 1 })
+      if (e) e.sides |= side
+      else found.set(key, { at: [uv[a], uv[a + 1], uv[b], uv[b + 1]], sides: side })
     }
   }
   const outline: number[] = []
   const inside: number[] = []
-  for (const e of found.values()) (e.faces === 1 ? outline : inside).push(...e.at)
+  for (const e of found.values()) (e.sides === 3 ? inside : outline).push(...e.at)
   return { outline, inside }
 }
 

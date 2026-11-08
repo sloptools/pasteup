@@ -36,6 +36,8 @@
     eraser: 'M2 2h7v1H2z M2 3h1v1H2z M8 3h1v1H8z M2 4h1v1H2z M8 4h1v1H8z M2 5h7v1H2z M2 6h7v1H2z M2 7h7v1H2z M1 9h9v1H1z',
   } as const
   export type IconName = keyof typeof paths
+  // For icons drawn outside Svelte, such as in the docs.
+  export const iconPaths: Record<string, string> = paths
 </script>
 
 <script lang="ts">

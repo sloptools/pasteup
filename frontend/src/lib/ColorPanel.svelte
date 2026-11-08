@@ -45,6 +45,22 @@
     input.focus()
   }
 
+  // The project's palettes, then the built-in ones not taken yet.
+  const choices = () => [...app.palettes.map((p) => p.name), ...builtins.map((b) => b.name).filter((n) => !app.palettes.some((p) => p.name === n))]
+
+  // Lospec and file run their action; the list then shows the chosen palette again.
+  function choosePalette(select: HTMLSelectElement) {
+    const value = select.value
+    select.value = app.finish.palette ?? ''
+    if (value === ':lospec') slug = ''
+    else if (value === ':file') file()
+    else {
+      const b = builtins.find((b) => b.name === value)
+      if (b && !app.palettes.some((p) => p.name === value)) addPalette(b)
+      else app.finish.palette = value
+    }
+  }
+
   function pick(e: MouseEvent, color: string) {
     e.preventDefault()
     app.colors[e.button === 2 ? 1 : 0] = color
@@ -98,16 +114,13 @@
       </div>
       {#if app.finish.mode === 'fixed'}
         <div class="line">
-          {#if app.palettes.length}
-            <select class="mono" bind:value={app.finish.palette}>
-              {#each app.palettes as p}<option value={p.name}>{p.name}</option>{/each}
-            </select>
-          {/if}
-          {#each builtins as b}
-            <button class="text-button" title="{b.name}'s {b.colors.length} colors" onclick={() => addPalette(b)}>{b.name}</button>
-          {/each}
-          <button class="text-button" title="A palette from lospec.com by its slug" onclick={() => (slug = '')}>lospec</button>
-          <button class="text-button" title="A palette file: .lmp, .gpl, .hex or an image" onclick={file}>file</button>
+          <select class="mono palettes" title="The palette to map to" value={app.finish.palette ?? ''} onchange={(e) => choosePalette(e.currentTarget)}>
+            {#if !app.finish.palette}<option value="">choose…</option>{/if}
+            {#each choices() as name}<option value={name}>{name}</option>{/each}
+            <option disabled>──</option>
+            <option value=":lospec">lospec…</option>
+            <option value=":file">file…</option>
+          </select>
         </div>
         {#if slug !== null}
           <input
@@ -196,9 +209,9 @@
     gap: 8px;
     flex-wrap: wrap;
   }
-  .line select {
+  .palettes {
+    flex: 1;
     height: 24px;
-    max-width: 110px;
     padding: 0 6px;
     border: 1px solid var(--line);
     border-radius: 6px;

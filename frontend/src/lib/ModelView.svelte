@@ -28,6 +28,34 @@
   let bloomStrength = $state(0.1)
   let post: EffectComposer
   let bloom: UnrealBloomPass
+  // Lines to render, like a game at that resolution would; 0 is the screen's own.
+  const resolutions = [0, 480, 360, 240]
+  let lines = $state(0)
+
+  export function cycleResolution() {
+    lines = resolutions[(resolutions.indexOf(lines) + 1) % resolutions.length]
+  }
+
+  function applySize() {
+    const w = el.clientWidth
+    const h = el.clientHeight
+    if (!w || !h) return false
+    const ratio = lines ? lines / h : window.devicePixelRatio
+    renderer.setPixelRatio(ratio)
+    renderer.setSize(w, h)
+    post.setPixelRatio(ratio)
+    post.setSize(w, h)
+    renderer.domElement.style.imageRendering = lines ? 'pixelated' : ''
+    camera.aspect = w / h
+    camera.updateProjectionMatrix()
+    needs = true
+    return true
+  }
+
+  $effect(() => {
+    void lines
+    if (ready) applySize()
+  })
   let ready = false
   let needs = true
 
@@ -136,13 +164,7 @@
     let sized = false
     if (import.meta.env.DEV) Object.assign(window, { orbit })
     const resize = new ResizeObserver(() => {
-      const w = el.clientWidth
-      const h = el.clientHeight
-      if (!w || !h) return
-      renderer.setSize(w, h)
-      post.setSize(w, h)
-      camera.aspect = w / h
-      camera.updateProjectionMatrix()
+      if (!applySize()) return
       // The first real size frames the model again, now that the lens is known.
       if (!sized) {
         sized = true
@@ -186,6 +208,7 @@
   <div class="bar">
     <div class="bloom"><Slider compact bind:value={bloomStrength} label="bloom" min={0} max={1.5} step={0.05} scale={100} title="How strongly glowing parts bloom; 0 is off" /></div>
     <button class="text-button" title="Light from the camera, or the texture flat as it is" onclick={() => (lit = !lit)}>{lit ? 'lit' : 'flat'}</button>
+    <button class="text-button mono" title="Render at a game's resolution, to see the texture at game size (P)" onclick={cycleResolution}>{lines ? `${lines}p` : 'full'}</button>
     <button class="text-button" title="Frame the model (⌘0)" onclick={frame}>frame</button>
   </div>
 </div>

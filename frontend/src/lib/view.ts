@@ -26,6 +26,8 @@ export class View {
     private range: [number, number],
   ) {}
 
+  private resizer: ResizeObserver | null = null
+
   async init() {
     await this.pixi.init({
       resizeTo: this.el,
@@ -39,10 +41,17 @@ export class View {
     this.pixi.stage.addChild(this.world)
     this.el.appendChild(this.pixi.canvas)
     this.listen()
-    new ResizeObserver(() => {
+    this.resizer = new ResizeObserver(() => {
       this.pixi.resize()
       this.draw()
-    }).observe(this.el)
+    })
+    this.resizer.observe(this.el)
+  }
+
+  destroy() {
+    this.resizer?.disconnect()
+    cancelAnimationFrame(this.frame)
+    this.pixi.destroy(true)
   }
 
   draw() {

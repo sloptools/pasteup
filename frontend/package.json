@@ -20,6 +20,7 @@
     "vite": "^8.3.5"
   },
   "dependencies": {
+    "marked": "15.0.12",
     "pixi.js": "^8.22.0",
     "three": "0.186.1"
   }

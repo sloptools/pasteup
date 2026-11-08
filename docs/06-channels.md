@@ -3,7 +3,7 @@
 | Key | Effect |
 |---|---|
 | ⌘1–⌘4 | show color, emission, ao, roughness (⇧ adds one not there yet) |
-| tabs, + | the same in the layer panel; + adds a channel |
+| tabs | the same in the layer panel; a faint tab is a channel not there yet, a click adds it |
 | right-click a tab | show it faintly over the others, remove it |
 | right-click a layer | copy it to another channel |
 

@@ -1,6 +1,7 @@
 import { BridgeConnected, BridgeRequestSync, BridgeTexture } from '../../wailsjs/go/main/App'
 import { EventsOn } from '../../wailsjs/runtime/runtime'
 import { app, say, type Layout } from './state.svelte'
+import { readBack } from './readback'
 
 function hash(s: string): string {
   let h = 2166136261
@@ -16,6 +17,8 @@ class Bridge {
   private snapshot: () => Record<string, string> = () => ({})
   private timer = 0
   private sent = ''
+  // The color of the last few versions sent, to read Blender's paint against.
+  private versions = new Map<number, string>()
 
   get live() {
     return !!app.blend && this.connected.includes(app.blend)
@@ -23,6 +26,12 @@ class Bridge {
 
   start(snapshot: () => Record<string, string>) {
     this.snapshot = snapshot
+    EventsOn('bridge:paint', (p: { blend: string; png: string; texture: number }) => {
+      const base = this.versions.get(p.texture)
+      if (p.blend !== app.blend) return
+      if (!base) return say('blender painted on a texture pasteup no longer has')
+      readBack(p.png, base)
+    })
     EventsOn('bridge:sync', (s: { blend: string; layout: Layout }) => {
       app.layout = s.layout
       app.blend = s.blend
@@ -57,7 +66,9 @@ class Bridge {
     if (sig === this.sent) return
     this.sent = sig
     try {
-      await BridgeTexture(blend, pngs)
+      const version = await BridgeTexture(blend, pngs)
+      if (pngs.color) this.versions.set(version, pngs.color)
+      for (const v of this.versions.keys()) if (v < version - 8) this.versions.delete(v)
     } catch (err) {
       say(String(err))
     }

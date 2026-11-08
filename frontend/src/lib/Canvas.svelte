@@ -76,7 +76,7 @@
     })
     return () => {
       stopAnts()
-      view.pixi.destroy(true)
+      view.destroy()
     }
   })
 
@@ -174,7 +174,7 @@
     if (!app.layout) return view.draw()
     // Island outlines matter for painting; the edges inside only faintly.
     const { outline, inside } = edges(app.layout)
-    for (const [lines, alpha] of [[inside, 0.1], [outline, 0.55]] as const) {
+    for (const [lines, alpha] of [[inside, 0.1], [outline, 0.8]] as const) {
       for (let i = 0; i < lines.length; i += 4) uvLines.moveTo(lines[i] * size, lines[i + 1] * size).lineTo(lines[i + 2] * size, lines[i + 3] * size)
       uvLines.stroke({ width: 1, color: 0xebe8df, alpha, pixelLine: true })
     }

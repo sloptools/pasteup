@@ -6,7 +6,7 @@ export function BridgeConnected():Promise<Array<string>>;
 
 export function BridgeRequestSync(arg1:string):Promise<void>;
 
-export function BridgeTexture(arg1:string,arg2:Record<string, string>):Promise<void>;
+export function BridgeTexture(arg1:string,arg2:Record<string, string>):Promise<number>;
 
 export function BuiltinPalettes():Promise<Array<main.Palette>>;
 

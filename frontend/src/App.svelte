@@ -14,7 +14,7 @@
   import { redo, track, undo } from './lib/history.svelte'
   import { addAdjust, duplicate, move, newLayer, setSize } from './lib/layerOps'
   import Tools from './lib/Tools.svelte'
-  import KeyHelp from './lib/KeyHelp.svelte'
+  import Help from './lib/Help.svelte'
   import ModelView from './lib/ModelView.svelte'
   import { loadNames } from './lib/grunge.svelte'
   import { dirty, markClean, open, openAny, project, projectName, save } from './lib/project.svelte'
@@ -75,7 +75,7 @@
       toggleRefs(e.shiftKey)
       return
     }
-    if (e.key === '?') {
+    if (e.key === '?' || e.key === 'F1') {
       e.preventDefault()
       help = true
       return
@@ -108,7 +108,10 @@
 
     let handled: boolean
     // The 3D view takes no keys but ⌘0; the canvas keeps its own.
-    if (app.focus === 'refs' && app.refView === '3d') handled = false
+    if (app.focus === 'refs' && app.refView === '3d') {
+      handled = e.key === 'p' && !!model
+      if (handled) model!.cycleResolution()
+    }
     else if (app.focus === 'refs' && app.refs !== 'closed') handled = refs.key(e) || refKey(e)
     else if (app.focus === 'layers') handled = layersKey(e)
     else handled = canvasKey(e)
@@ -267,12 +270,12 @@
 
   <footer class="mono">
     <span class="status">{app.status}</span>
-    <button class="keys-help" title="All keys (?)" onclick={() => (help = true)}>? keys</button>
+    <button class="keys-help" title="Docs and all keys (?, F1)" onclick={() => (help = true)}>? help</button>
   </footer>
 </div>
 
 {#if help}
-  <KeyHelp onclose={() => (help = false)} />
+  <Help onclose={() => (help = false)} />
 {/if}
 
 <style>

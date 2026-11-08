@@ -33,7 +33,7 @@
       ready = true
       fit()
     })
-    return () => view.pixi.destroy(true)
+    return () => view.destroy()
   })
 
   export function fit() {

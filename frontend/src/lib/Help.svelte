@@ -1,4 +1,8 @@
 <script lang="ts">
+  import Docs from './Docs.svelte'
+  import Icon from './Icon.svelte'
+  import { help } from './helpState.svelte'
+
   let { onclose }: { onclose: () => void } = $props()
 
   // Keys by area; the docs have the details.
@@ -12,8 +16,9 @@
         ['⌘⇧E', 'export the texture'],
         ['Tab ⇧Tab', 'hide, maximize the refs'],
         ['`', 'refs or the 3D view'],
+        ['P', '3D view at game resolution'],
         ['⌘0', 'fit the view'],
-        ['?', 'this overview'],
+        ['? F1', 'help: docs and keys'],
       ],
     ],
     [
@@ -76,7 +81,7 @@
   ]
 
   function key(e: KeyboardEvent) {
-    if (e.key !== 'Escape' && e.key !== '?') return
+    if (e.key !== 'Escape' && e.key !== '?' && e.key !== 'F1') return
     e.preventDefault()
     e.stopPropagation()
     onclose()
@@ -87,14 +92,26 @@
 
 <div class="backdrop" role="presentation" onpointerdown={(e) => e.target === e.currentTarget && onclose()}>
   <div class="sheet">
-    {#each groups as [title, keys]}
-      <section>
-        <div class="caps">{title}</div>
-        {#each keys as [k, what]}
-          <div class="row"><span class="keys mono">{k}</span><span>{what}</span></div>
+    <header>
+      <button class="tab caps" class:on={help.tab === 'docs'} onclick={() => (help.tab = 'docs')}>docs</button>
+      <button class="tab caps" class:on={help.tab === 'keys'} onclick={() => (help.tab = 'keys')}>keys</button>
+      <div class="spacer"></div>
+      <button class="close" onclick={onclose} aria-label="Close"><Icon name="x" size={11} /></button>
+    </header>
+    {#if help.tab === 'docs'}
+      <div class="docs"><Docs /></div>
+    {:else}
+      <div class="keys-grid">
+        {#each groups as [title, keys]}
+          <section>
+            <div class="caps">{title}</div>
+            {#each keys as [k, what]}
+              <div class="row"><span class="keys mono">{k}</span><span>{what}</span></div>
+            {/each}
+          </section>
         {/each}
-      </section>
-    {/each}
+      </div>
+    {/if}
   </div>
 </div>
 
@@ -108,16 +125,63 @@
     background: rgb(0 0 0 / 0.35);
   }
   .sheet {
-    display: grid;
-    grid-template-columns: repeat(3, 280px);
-    gap: 18px 28px;
-    padding: 22px 26px;
+    width: min(960px, 92vw);
+    height: min(720px, 86vh);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
     background: var(--panel);
     border: 1px solid var(--line);
     border-radius: 10px;
     box-shadow: 0 12px 40px rgb(0 0 0 / 0.4);
   }
-  .caps {
+  header {
+    height: 40px;
+    flex: none;
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    padding: 0 10px;
+    border-bottom: 1px solid var(--line);
+  }
+  .tab {
+    height: 24px;
+    padding: 0 8px;
+    border: 0;
+    border-radius: 5px;
+    background: none;
+  }
+  .tab.on {
+    background: var(--active);
+    color: var(--strong);
+  }
+  .spacer {
+    flex: 1;
+  }
+  .close {
+    padding: 4px;
+    border: 0;
+    background: none;
+    color: var(--dim);
+  }
+  .close:hover {
+    color: var(--strong);
+  }
+  .docs {
+    flex: 1;
+    min-height: 0;
+  }
+  .keys-grid {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    align-content: start;
+    gap: 18px 28px;
+    padding: 22px 26px;
+  }
+  section .caps {
     margin-bottom: 6px;
   }
   .row {

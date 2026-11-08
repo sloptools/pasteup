@@ -254,10 +254,42 @@ def in_view(fn):
         fn(bpy.context)
 
 
+def painted_image():
+    mat = bpy.data.materials.get(material_name())
+    node = mat.node_tree.nodes.get("color") if mat and mat.use_nodes else None
+    return node.image if node else None
+
+
+def send_paint(blend):
+    """Strokes painted on the pasteup texture in Blender go back to pasteup.
+    True while the image holds strokes pasteup hasn't had yet."""
+    import numpy as np
+    import zlib
+
+    img = painted_image()
+    if not img or not img.is_dirty:
+        state["painted"] = None
+        return False
+    w, h = img.size
+    px = np.empty(w * h * 4, dtype=np.float32)
+    img.pixels.foreach_get(px)
+    raw = (np.clip(px, 0, 1) * 255 + 0.5).astype(np.uint8).tobytes()
+    mark = zlib.crc32(raw)
+    if mark == state.get("painted"):
+        return False
+    written = os.path.join(bpy.app.tempdir, blend_name() + ".pasteup.rgba")
+    with open(written, "wb") as f:
+        f.write(raw)
+    body = {"blend": blend, "written": written, "width": w, "height": h, "texture": state["texture"]}
+    if call("/paint", body, timeout=2) is not None:
+        state["painted"] = mark
+    return True
+
+
 def poll():
     blend = blend_path()
     if blend != state["blend"]:
-        state.update(blend=blend, texture=-1, sync=None)
+        state.update(blend=blend, texture=-1, sync=None, painted=None)
     s = call("/state?blend=" + urllib.parse.quote(blend)) if blend else None
     connected = s is not None
     if connected != state["connected"]:
@@ -268,7 +300,9 @@ def poll():
     if not s:
         return 0.5
 
-    if s["texture"] != state["texture"] and s.get("color") and os.path.exists(s["color"]):
+    # Paint from Blender first; pasteup's next texture holds it, so reloading then loses nothing.
+    fresh_paint = send_paint(blend)
+    if not fresh_paint and s["texture"] != state["texture"] and s.get("color") and os.path.exists(s["color"]):
         state["texture"] = s["texture"]
         mat = update_material(s)
         scene = bpy.context.scene

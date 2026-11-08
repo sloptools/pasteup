@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"crypto/rand"
 	"crypto/subtle"
 	"encoding/base64"
@@ -8,6 +9,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"image"
+	"image/png"
 	"net"
 	"net/http"
 	"os"
@@ -47,6 +50,24 @@ type BridgeSync struct {
 	Blend   string         `json:"blend"`
 	Written string         `json:"written"`
 	UVSets  map[string]int `json:"uvSets"`
+}
+
+// BridgePaint is what the add-on sends when the texture was painted on in Blender:
+// its pixels as raw RGBA bytes, rows bottom up as Blender keeps them, and the
+// texture version they were painted on.
+type BridgePaint struct {
+	Blend   string `json:"blend"`
+	Written string `json:"written"`
+	Width   int    `json:"width"`
+	Height  int    `json:"height"`
+	Texture int    `json:"texture"`
+}
+
+// BridgePainted goes to the frontend: the painted texture as a PNG and its base version.
+type BridgePainted struct {
+	Blend   string `json:"blend"`
+	PNG     string `json:"png"`
+	Texture int    `json:"texture"`
 }
 
 type BridgeLayout struct {
@@ -141,10 +162,48 @@ func (a *App) bridgeHandler() http.Handler {
 			runtime.EventsEmit(a.ctx, "bridge:sync", BridgeLayout{Blend: s.Blend, Layout: layout})
 			runtime.WindowShow(a.ctx)
 
+		case "/paint":
+			var p BridgePaint
+			if err := json.NewDecoder(r.Body).Decode(&p); err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+			png, err := paintedPNG(p)
+			os.Remove(p.Written)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+			runtime.EventsEmit(a.ctx, "bridge:paint", BridgePainted{Blend: p.Blend, PNG: png, Texture: p.Texture})
+
 		default:
 			http.NotFound(w, r)
 		}
 	})
+}
+
+// paintedPNG turns the add-on's raw pixels into a PNG, rows top down.
+func paintedPNG(p BridgePaint) (string, error) {
+	if !filepath.IsAbs(p.Blend) || !strings.HasSuffix(p.Written, ".pasteup.rgba") || p.Width <= 0 || p.Height <= 0 || p.Width > 8192 || p.Height > 8192 {
+		return "", errors.New("bad paint")
+	}
+	data, err := os.ReadFile(p.Written)
+	if err != nil {
+		return "", err
+	}
+	if len(data) != p.Width*p.Height*4 {
+		return "", fmt.Errorf("paint has %d bytes, want %d", len(data), p.Width*p.Height*4)
+	}
+	img := image.NewNRGBA(image.Rect(0, 0, p.Width, p.Height))
+	row := p.Width * 4
+	for y := range p.Height {
+		copy(img.Pix[y*row:(y+1)*row], data[(p.Height-1-y)*row:(p.Height-y)*row])
+	}
+	var buf bytes.Buffer
+	if err := png.Encode(&buf, img); err != nil {
+		return "", err
+	}
+	return base64.StdEncoding.EncodeToString(buf.Bytes()), nil
 }
 
 // BridgeConnected lists the .blend files whose add-on asked in the last seconds.
@@ -165,22 +224,23 @@ func (a *App) BridgeConnected() []string {
 }
 
 // BridgeTexture writes the live channels beside the .blend, color as <name>.png,
-// the others as <name>_<channel>.png, and tells the add-on.
-func (a *App) BridgeTexture(blend string, pngs map[string]string) error {
+// the others as <name>_<channel>.png, and tells the add-on. It returns the
+// version, which comes back with paint from Blender.
+func (a *App) BridgeTexture(blend string, pngs map[string]string) (int, error) {
 	if a.bridge == nil {
-		return errors.New("no bridge")
+		return 0, errors.New("no bridge")
 	}
 	if !filepath.IsAbs(blend) {
-		return errors.New("bad blend")
+		return 0, errors.New("bad blend")
 	}
 	paths := map[string]string{}
 	for channel, b64 := range pngs {
 		path, err := channelPath(strings.TrimSuffix(blend, filepath.Ext(blend))+".png", channel)
 		if err != nil {
-			return err
+			return 0, err
 		}
 		if err := writePNG(path, b64); err != nil {
-			return err
+			return 0, err
 		}
 		paths[channel] = path
 	}
@@ -193,7 +253,7 @@ func (a *App) BridgeTexture(blend string, pngs map[string]string) error {
 	s.Color = paths["color"]
 	s.Emission = paths["emission"]
 	s.Roughness = paths["roughness"]
-	return nil
+	return s.Texture, nil
 }
 
 var channelNames = map[string]bool{"color": true, "emission": true, "ao": true, "roughness": true}
