@@ -62,6 +62,15 @@ export function scaleBy(l: Layer, f: number) {
   fit(l, { x: b.x + Math.trunc((b.w - w) / 2), y: b.y + Math.trunc((b.h - h) / 2), w, h })
 }
 
+// Scales about the box's center, aspect kept, until the layer covers it.
+export function cover(l: Layer, b: Box) {
+  const now = box(l)
+  const s = Math.max(b.w / now.w, b.h / now.h)
+  const w = Math.round(now.w * s)
+  const h = Math.round(now.h * s)
+  fit(l, { x: b.x + Math.trunc((b.w - w) / 2), y: b.y + Math.trunc((b.h - h) / 2), w, h })
+}
+
 // Mirrors as seen in the texture, whatever the turns.
 export function flip(l: Layer, horizontal: boolean) {
   if (horizontal === (l.turns % 2 === 0)) l.flipX = !l.flipX

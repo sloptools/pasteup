@@ -79,6 +79,7 @@ export class Stroke {
   private clip: HTMLCanvasElement | null
   // Tile mode: offsets of the texture's copies, [0, 0] alone without it.
   private copies: [number, number][]
+  private pattern: { texels: HTMLCanvasElement; colored: HTMLCanvasElement } | null = null
 
   constructor(
     private source: HTMLCanvasElement,
@@ -96,6 +97,8 @@ export class Stroke {
       wrap: { x: boolean; y: boolean }
       // Clears where paint may land first, so gradients on masks set them rather than add.
       replace?: boolean
+      // Texels whose colors the stroke lays down instead of the color, for cloning.
+      pattern?: HTMLCanvasElement
     },
   ) {
     this.copies = []
@@ -116,6 +119,7 @@ export class Stroke {
       this.soft = { weights: weights(o.tipSize, o.tip, o.hardness!), strength: new Float32Array(size * size), rgb, dirty: false }
     }
     if (o.clip) this.kept = blank(size, size)
+    if (o.pattern) this.pattern = { texels: o.pattern, colored: blank(size, size) }
   }
 
   // A row of texels, for shapes.
@@ -183,6 +187,14 @@ export class Stroke {
       k.globalCompositeOperation = 'destination-in'
       k.drawImage(this.clip, 0, 0)
       mask = this.kept
+    }
+    if (this.pattern) {
+      const c = this.pattern.colored.getContext('2d')!
+      c.globalCompositeOperation = 'copy'
+      c.drawImage(mask, 0, 0)
+      c.globalCompositeOperation = 'source-in'
+      c.drawImage(this.pattern.texels, 0, 0)
+      mask = this.pattern.colored
     }
     const ctx = this.canvas.getContext('2d', { willReadFrequently: true })!
     ctx.globalAlpha = 1

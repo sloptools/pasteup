@@ -72,13 +72,13 @@ export const tiles = ['off', 'x', 'y', 'xy'] as const
 export type Tile = (typeof tiles)[number]
 export const wraps = (t: Tile) => ({ x: t === 'x' || t === 'xy', y: t === 'y' || t === 'xy' })
 
-export type CanvasTool = 'move' | 'transform' | 'island' | 'select' | 'brush' | 'eraser' | 'fill' | 'shape'
+export type CanvasTool = 'move' | 'transform' | 'island' | 'select' | 'brush' | 'eraser' | 'clone' | 'fill' | 'shape'
 export const selectModes = ['rect', 'lasso'] as const
 export type SelectMode = (typeof selectModes)[number]
-export type PaintTool = 'brush' | 'eraser'
+export type PaintTool = 'brush' | 'eraser' | 'clone'
 // Tools that lay color into the active layer, each with its own opacity.
 export type ColorTool = PaintTool | 'fill' | 'shape'
-export const colorTools: CanvasTool[] = ['brush', 'eraser', 'fill', 'shape']
+export const colorTools: CanvasTool[] = ['brush', 'eraser', 'clone', 'fill', 'shape']
 export const shapes = ['rect', 'rect filled', 'ellipse', 'ellipse filled', 'line'] as const
 export type Shape = (typeof shapes)[number]
 export const fillModes = ['bucket', 'gradient'] as const
@@ -140,12 +140,19 @@ export const app = $state({
   // Cuts become rectangles; off keeps the shape as the photo shows it.
   deskew: true,
   canvasTool: 'move' as CanvasTool,
-  tip: { brush: 'round', eraser: 'square' } as Record<PaintTool, Tip>,
+  tip: { brush: 'round', eraser: 'square', clone: 'round' } as Record<PaintTool, Tip>,
   // Brush and eraser size in texels.
-  tipSize: { brush: 1, eraser: 4 } as Record<PaintTool, number>,
+  tipSize: { brush: 1, eraser: 4, clone: 6 } as Record<PaintTool, number>,
   // 1 is hard and texel exact; lower fades the tip out toward its edge.
-  hardness: { brush: 1, eraser: 1 } as Record<PaintTool, number>,
-  paintOpacity: { brush: 1, eraser: 1, fill: 1, shape: 1 } as Record<ColorTool, number>,
+  hardness: { brush: 1, eraser: 1, clone: 1 } as Record<PaintTool, number>,
+  paintOpacity: { brush: 1, eraser: 1, clone: 1, fill: 1, shape: 1 } as Record<ColorTool, number>,
+  // Clone source: a texel, or a point in a photo; anchor is the texel the first stroke
+  // after picking it started at, so later strokes keep the same offset.
+  clone: null as { photo: string | null; x: number; y: number; anchor: [number, number] | null } | null,
+  // Texels per photo pixel when cloning from a photo.
+  cloneScale: 0.25,
+  // The source point under the brush, in photo pixels, for the mark in the refs.
+  cloneSpot: null as [number, number] | null,
   // Fill: how far colors may differ, only touching texels, sampling all visible layers.
   fill: { tolerance: 0, contiguous: true, merged: false },
   fillMode: 'bucket' as FillMode,

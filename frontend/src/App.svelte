@@ -130,6 +130,7 @@
       canvas.offset()
       handled = true
     }
+    if (!handled && app.focus === 'canvas' && e.key === 'f') handled = canvas.fitIsland()
     if (handled) e.preventDefault()
   }
 

@@ -55,6 +55,11 @@ export function canvasKey(e: KeyboardEvent): boolean {
     case 'B':
     case 'E':
       return cycleTip(e.key === 'B' ? 'brush' : 'eraser')
+    case 's':
+      useTool('clone')
+      return true
+    case 'S':
+      return cycleTip('clone')
     case 'm':
       useTool('select')
       return true
@@ -94,7 +99,7 @@ export function canvasKey(e: KeyboardEvent): boolean {
   const opacity = digit === 0 ? 1 : (digit ?? 0) / 10
 
   const tool = app.canvasTool
-  if (tool === 'brush' || tool === 'eraser') {
+  if (tool === 'brush' || tool === 'eraser' || tool === 'clone') {
     if (e.key === '[' || e.key === ']') {
       const size = app.tipSize[tool] + (e.key === ']' ? 1 : -1)
       app.tipSize[tool] = Math.min(Math.max(size, 1), 64)

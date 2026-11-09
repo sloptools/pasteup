@@ -3,10 +3,10 @@
   import { useTool } from './keys'
   import { app, fillModes, selectModes, shapes, tips, type CanvasTool, type FillMode, type PaintTool, type SelectMode, type Shape, type Tip } from './state.svelte'
 
-  type Variants = { options: readonly string[]; get: () => string; set: (v: string) => void }
+  type Variants = { options: readonly string[]; get: () => string; set: (v: string) => void; icon: (v: string) => IconName }
   type Tool = { id: CanvasTool; label: string; key: string; icon: () => IconName; variants?: Variants }
 
-  const tipsOf = (tool: PaintTool): Variants => ({ options: tips, get: () => app.tip[tool], set: (v) => (app.tip[tool] = v as Tip) })
+  const tipsOf = (tool: PaintTool): Variants => ({ options: tips, get: () => app.tip[tool], set: (v) => (app.tip[tool] = v as Tip), icon: (v) => v as Tip })
 
   const tools: Tool[] = [
     { id: 'move', label: 'move', key: 'V', icon: () => 'move' },
@@ -17,28 +17,29 @@
       label: 'select',
       key: 'M',
       icon: () => (app.selectMode === 'rect' ? 'select' : 'lasso'),
-      variants: { options: selectModes, get: () => app.selectMode, set: (v) => (app.selectMode = v as SelectMode) },
+      variants: { options: selectModes, get: () => app.selectMode, set: (v) => (app.selectMode = v as SelectMode), icon: (v) => (v === 'rect' ? 'select' : 'lasso') },
     },
     { id: 'brush', label: 'brush', key: 'B', icon: () => 'brush', variants: tipsOf('brush') },
     { id: 'eraser', label: 'eraser', key: 'E', icon: () => 'eraser', variants: tipsOf('eraser') },
+    { id: 'clone', label: 'clone', key: 'S', icon: () => 'clone', variants: tipsOf('clone') },
     {
       id: 'fill',
       label: 'fill',
       key: 'G',
       icon: () => (app.fillMode === 'bucket' ? 'fill' : 'gradient'),
-      variants: { options: fillModes, get: () => app.fillMode, set: (v) => (app.fillMode = v as FillMode) },
+      variants: { options: fillModes, get: () => app.fillMode, set: (v) => (app.fillMode = v as FillMode), icon: (v) => (v === 'bucket' ? 'fill' : 'gradient') },
     },
     {
       id: 'shape',
       label: 'shape',
       key: 'U',
       icon: () => app.shape,
-      variants: { options: shapes, get: () => app.shape, set: (v) => (app.shape = v as Shape) },
+      variants: { options: shapes, get: () => app.shape, set: (v) => (app.shape = v as Shape), icon: (v) => v as Shape },
     },
   ]
 
   // Tools by kind, with a line between kinds: placing, selecting, painting, filling.
-  const groups: CanvasTool[][] = [['move', 'transform', 'island'], ['select'], ['brush', 'eraser'], ['fill', 'shape']]
+  const groups: CanvasTool[][] = [['move', 'transform', 'island'], ['select'], ['brush', 'eraser', 'clone'], ['fill', 'shape']]
   const group = (t: Tool) => groups.findIndex((g) => g.includes(t.id))
 
   // The tool whose tip shows, after a short rest on its button.
@@ -124,7 +125,7 @@
       {@const v = t.variants}
       <div class="variants" style:top="{openAt}px">
         {#each v.options as option}
-          <button class:on={v.get() === option} onclick={() => choose(t, option)}>{t.label} {option}</button>
+          <button class:on={v.get() === option} onclick={() => choose(t, option)}><Icon name={v.icon(option)} />{option}</button>
         {/each}
       </div>
     {/if}
@@ -206,8 +207,11 @@
     box-shadow: 0 6px 20px rgb(0 0 0 / 0.35);
   }
   .variants button {
+    display: flex;
+    align-items: center;
+    gap: 8px;
     height: 24px;
-    padding: 0 10px;
+    padding: 0 10px 0 8px;
     border: 0;
     border-radius: 5px;
     background: none;

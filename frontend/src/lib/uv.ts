@@ -81,3 +81,19 @@ export function islandMask(layout: Layout, island: number, size: number): HTMLCa
   byIsland.set(key, canvas)
   return canvas
 }
+
+// The texels an island's faces span, in whole texels.
+export function islandBox(layout: Layout, island: number, size: number) {
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity
+  eachFace(layout, island, (p) => {
+    for (let i = 0; i < 6; i += 2) {
+      x0 = Math.min(x0, p[i] * size)
+      x1 = Math.max(x1, p[i] * size)
+      y0 = Math.min(y0, p[i + 1] * size)
+      y1 = Math.max(y1, p[i + 1] * size)
+    }
+  })
+  const x = Math.floor(x0)
+  const y = Math.floor(y0)
+  return { x, y, w: Math.ceil(x1) - x, h: Math.ceil(y1) - y }
+}

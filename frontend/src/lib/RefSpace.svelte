@@ -116,6 +116,14 @@
       for (const [x0, y0, x1, y1] of guides) marks.moveTo(x0 + p.x, y0 + p.y).lineTo(x1 + p.x, y1 + p.y)
       if (guides.length) marks.stroke({ width: 1, color: 0x7fc4af, pixelLine: true })
     }
+    const from = app.canvasTool === 'clone' && app.clone?.photo ? app.photos.find((p) => p.id === app.clone!.photo) : null
+    if (from) {
+      const [x, y] = app.cloneSpot ?? [app.clone!.x, app.clone!.y]
+      const r = 8 / z
+      marks.moveTo(from.x + x - r, from.y + y).lineTo(from.x + x + r, from.y + y)
+      marks.moveTo(from.x + x, from.y + y - r).lineTo(from.x + x, from.y + y + r)
+      marks.stroke({ width: 1, color: 0xffb020, pixelLine: true })
+    }
     view.draw()
   })
 
@@ -169,6 +177,13 @@
       app.focus = 'refs'
       if (view.panning || e.button !== 0) return
       const [x, y] = view.toWorld(e.clientX, e.clientY)
+
+      // With the clone tool in the canvas, ⌥ click picks the spot to clone from.
+      const source = e.altKey && app.canvasTool === 'clone' ? photoAt(x, y) : undefined
+      if (source) {
+        app.clone = { photo: source.id, x: x - source.x, y: y - source.y, anchor: null }
+        return
+      }
 
       if (app.refTool === 'cut') {
         const corner = cornerAt(x, y)

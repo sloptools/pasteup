@@ -5,7 +5,7 @@
   import { discard, place } from './clipboard'
   import { gradientControl } from './gradientEdit'
   import { box, fit, flip, turn } from './transform'
-  import { activeLayer, app, selectModes, shapes, tips, type Layer, type Tip } from './state.svelte'
+  import { activeLayer, app, selectModes, shapes, tips, type Layer, type PaintTool, type Tip } from './state.svelte'
 
   const turns: [() => void, string, 'rotate' | 'flip', string][] = [
     [() => withLayer((l) => turn(l, -1)), 'Rotate 90° counter-clockwise (⇧R)', 'rotate', 'mirror'],
@@ -16,7 +16,7 @@
 
   const hints: Record<string, string> = {
     move: 'drag the active layer · arrows',
-    island: 'click an island to clip the active layer to it',
+    island: 'click an island to clip the active layer to it, F to fit it there too',
   }
 
   const layer = $derived(activeLayer()?.canvas ? activeLayer() : undefined)
@@ -48,7 +48,7 @@
 
   let open = $state(false)
 
-  function choose(tool: 'brush' | 'eraser', tip: Tip) {
+  function choose(tool: PaintTool, tip: Tip) {
     app.tip[tool] = tip
     open = false
   }
@@ -56,7 +56,7 @@
   // While the list is open, arrows pick the tip, Enter and Esc close it.
   function listKey(e: KeyboardEvent) {
     const tool = app.canvasTool
-    if (!open || (tool !== 'brush' && tool !== 'eraser')) return
+    if (!open || (tool !== 'brush' && tool !== 'eraser' && tool !== 'clone')) return
     if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
       const at = tips.indexOf(app.tip[tool]) + (e.key === 'ArrowDown' ? 1 : -1)
       app.tip[tool] = tips[Math.min(Math.max(at, 0), tips.length - 1)]
@@ -86,10 +86,10 @@
 {/snippet}
 
 <div class="options">
-  {#if app.canvasTool === 'brush' || app.canvasTool === 'eraser'}
+  {#if app.canvasTool === 'brush' || app.canvasTool === 'eraser' || app.canvasTool === 'clone'}
     {@const tool = app.canvasTool}
     <div class="tips">
-      <button class="current mono" title="Tip (⇧{tool === 'brush' ? 'B' : 'E'})" onclick={() => (open = !open)}>
+      <button class="current mono" title="Tip (⇧{{ brush: 'B', eraser: 'E', clone: 'S' }[tool]})" onclick={() => (open = !open)}>
         {@render preview(app.tip[tool])}<span class="caret">▾</span>
       </button>
       {#if open}
@@ -104,6 +104,13 @@
     <Slider compact bind:value={app.hardness[tool]} label="hard" min={0} max={1} step={0.01} scale={100} title="Hardness: 100 is hard and texel exact, lower fades the tip out toward its edge" />
     <Slider compact bind:value={app.paintOpacity[tool]} label="opacity" min={0.01} max={1} step={0.01} scale={100} title="Opacity (1–9, 0)" />
     {@render islandClip()}
+    {#if tool === 'clone'}
+      {#if app.clone?.photo}
+        <Slider compact bind:value={app.cloneScale} label="scale" min={0.01} max={1} step={0.01} scale={100} title="Texels per photo pixel, in %" />
+      {:else if !app.clone}
+        <span class="hint">⌥ click the canvas or a photo to clone from</span>
+      {/if}
+    {/if}
   {:else if app.canvasTool === 'fill' && app.fillMode === 'gradient'}
     <div class="seg">
       <button class:on={!app.gradient.radial} title="linear" onclick={() => (app.gradient.radial = false)}><Icon name="linear" size={11} /></button>

@@ -25,8 +25,9 @@
       'canvas tools',
       [
         ['V T I', 'move, transform, island'],
+        ['F', 'fit the layer to the island under the cursor'],
         ['M ⇧M', 'select, rect or lasso'],
-        ['B E', 'brush, eraser (⇧ next tip)'],
+        ['B E S', 'brush, eraser, clone (⇧ next tip)'],
         ['G ⇧G', 'fill, bucket or gradient'],
         ['U ⇧U', 'shape, next kind'],
         ['L', 'line (⇧ 45° steps)'],

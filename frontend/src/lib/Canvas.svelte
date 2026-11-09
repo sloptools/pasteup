@@ -5,8 +5,8 @@
   import { autoPalette } from './palette'
   import { View } from './view'
   import { Composer, hits } from './compose'
-  import { settle, box, cursors, fit as fitBox, handleAt, handles, hit, matrix, place, resize, type Box, type Handle } from './transform'
-  import { edges, eachFace, islandAt, islandMask } from './uv'
+  import { settle, box, cover, cursors, fit as fitBox, handleAt, handles, hit, matrix, place, resize, type Box, type Handle } from './transform'
+  import { edges, eachFace, islandAt, islandBox, islandMask } from './uv'
   import { activeLayer, app, colorTools, finishing, masking, paletteColors, say, wraps, type Channel, type ColorTool, type PaintTool } from './state.svelte'
   import { bridge } from './bridge.svelte'
   import { addMask, mergeDown, newLayer } from './layerOps'
@@ -37,6 +37,7 @@
   const uvLines = new Graphics()
   const islandMark = new Graphics()
   const frame = new Graphics()
+  const cloneMark = new Graphics()
   const tip = new Graphics()
   const grips = new Graphics()
   let zoom = $state(1)
@@ -44,7 +45,7 @@
   let stopAnts = () => {}
 
   const painting = $derived(colorTools.includes(app.canvasTool))
-  const brushing = $derived(app.canvasTool === 'brush' || app.canvasTool === 'eraser')
+  const brushing = $derived(app.canvasTool === 'brush' || app.canvasTool === 'eraser' || app.canvasTool === 'clone')
   // Where a shape or gradient drag started.
   let dragFrom: [number, number] | null = null
   let dragRight = false
@@ -57,7 +58,7 @@
     view.init().then(() => {
       composer = new Composer(view.pixi.renderer, app.size)
       texture = new Sprite(composer.target)
-      view.world.addChild(checker, neighbors, texture, onionSprite, uvLines, islandMark, frame, marquee.node, grips, ends.node, tip)
+      view.world.addChild(checker, neighbors, texture, onionSprite, uvLines, islandMark, frame, marquee.node, grips, ends.node, tip, cloneMark)
       gradientControl.apply = applyGradient
       gradientControl.cancel = cancelGradient
       view.onZoom = () => (zoom = view.zoom)
@@ -157,6 +158,20 @@
     }
     view.draw()
   })
+
+  // F: the active piece covers the island under the cursor and keeps to it.
+  export function fitIsland() {
+    const l = activeLayer()
+    if (!['move', 'transform', 'island'].includes(app.canvasTool) || !l?.canvas) return false
+    if (!app.layout || hoverIsland === null) {
+      say('f fits the layer to the island under the cursor')
+      return true
+    }
+    checkpoint()
+    cover(l, islandBox(app.layout, hoverIsland, app.size))
+    l.island = hoverIsland
+    return true
+  }
 
   // Shifts the view by half the texture along the tiled axes, to bring a seam to the middle.
   export function offset() {
@@ -279,6 +294,21 @@
     view.draw()
   })
 
+  // The clone source under the brush: a cross here, or the spot in the photo for the refs.
+  $effect(() => {
+    if (!ready) return
+    cloneMark.clear()
+    const spot = app.canvasTool === 'clone' && hover ? cloneSource(hover) : null
+    app.cloneSpot = app.clone?.photo ? spot : null
+    if (spot && !app.clone?.photo) {
+      const [x, y] = [spot[0] + 0.5, spot[1] + 0.5]
+      const r = 6 / zoom
+      cloneMark.moveTo(x - r, y).lineTo(x + r, y).moveTo(x, y - r).lineTo(x, y + r)
+      cloneMark.stroke({ width: 1, color: 0xffb020, pixelLine: true })
+    }
+    view.draw()
+  })
+
   $effect(() => {
     if (!ready) return
     frame.clear()
@@ -328,13 +358,64 @@
     app.picking = false
   }
 
+  // The clone source for texel p: the picked point until a stroke anchors it, then
+  // at the same offset from p.
+  function cloneSource(p: [number, number]): [number, number] | null {
+    const c = app.clone
+    if (!c) return null
+    if (!c.anchor) return [c.x, c.y]
+    const s = c.photo ? 1 / app.cloneScale : 1
+    return [c.x + (p[0] - c.anchor[0]) * s, c.y + (p[1] - c.anchor[1]) * s]
+  }
+
+  // The colors a clone stroke lays down: the source moved onto the texels it paints.
+  function clonePattern(x: number, y: number): HTMLCanvasElement | null {
+    const c = app.clone
+    if (!c) {
+      say('⌥ click in the canvas or a photo to pick where to clone from')
+      return null
+    }
+    const photo = c.photo && app.photos.find((p) => p.id === c.photo)
+    if (c.photo && !photo) {
+      app.clone = null
+      say('the photo to clone from is gone')
+      return null
+    }
+    c.anchor ??= [x, y]
+    const size = app.size
+    const out = document.createElement('canvas')
+    out.width = out.height = size
+    const ctx = out.getContext('2d')!
+    if (photo) {
+      const s = app.cloneScale
+      if (gray(app.channel)) ctx.filter = 'grayscale(1)'
+      ctx.imageSmoothingQuality = 'high'
+      ctx.setTransform(s, 0, 0, s, c.anchor[0] + 0.5 - c.x * s, c.anchor[1] + 0.5 - c.y * s)
+      ctx.drawImage(photo.img, 0, 0)
+      return out
+    }
+    const merged = composer.canvas(composer.target)
+    const wrap = wraps(app.tile)
+    for (const dx of wrap.x ? [-size, 0, size] : [0]) {
+      for (const dy of wrap.y ? [-size, 0, size] : [0]) ctx.drawImage(merged, c.anchor[0] - c.x + dx, c.anchor[1] - c.y + dy)
+    }
+    return out
+  }
+
   function paintStart(e: PointerEvent, p: [number, number]) {
     const [x, y] = [Math.floor(p[0]), Math.floor(p[1])]
     const tool = app.canvasTool as ColorTool
-    const brush = tool === 'brush' || tool === 'eraser'
+    const brush = tool === 'brush' || tool === 'eraser' || tool === 'clone'
     const line = tool === 'shape' && app.shape === 'line'
+    if (e.altKey && tool === 'clone') {
+      app.clone = { photo: null, x: wrapped(x), y: wrapped(y), anchor: null }
+      return
+    }
     // Alt picks a color, except with shapes, where it draws from the center.
     if (e.altKey && tool !== 'shape') return pickColor(e, x, y)
+    if (tool === 'clone' && masking()) return say('clone paints pixels, not masks')
+    const pattern = tool === 'clone' ? clonePattern(x, y) : undefined
+    if (pattern === null) return
 
     clipPlace()
     checkpoint()
@@ -359,6 +440,7 @@
       clip: clipAt(wrapped(x), wrapped(y)),
       wrap: wraps(app.tile),
       replace: onMask && tool === 'fill' && app.fillMode === 'gradient',
+      pattern,
     })
     // Colors to fill by, read before the stroke stands in for the layer.
     const bucket = tool === 'fill' && app.fillMode === 'bucket'

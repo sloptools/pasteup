@@ -7,8 +7,11 @@ The tools run down the strip right of the canvas; their settings (tip, size, opa
 | V | move: drag or arrows (⇧ 8 texels) |
 | T | transform: handles scale, inside moves; with a selection, lifts it first |
 | I | island: click an island to clip the active layer to it |
+| F | move, transform, island: the active piece covers the island under the cursor, aspect kept, and is clipped to it |
 | B, ⇧B | brush, next tip (round, square) |
 | E, ⇧E | eraser, next tip |
+| S, ⇧S | clone, next tip |
+| ⌥ click | clone: the spot to clone from, in the canvas or in a photo |
 | G, ⇧G | fill, next kind (bucket, gradient) |
 | G | bucket: like texels touching the clicked one, or all alike (contiguous off); tolerance 0–255 |
 | drag | gradient: set one up, primary to secondary (right button: the other way), linear or radial around the start |
@@ -47,5 +50,7 @@ Every slider: click its value to type one, Enter sets it, Esc cancels. Values re
 Island clip needs a model. It counts every texel an island touches, even partly, so paint reaches the seams; the island under the cursor shows faintly. Unlike the island tool, which clips a whole layer for good, it only limits where a stroke lands.
 
 Gradient: a click without a drag sets up nothing; angle and length can also be typed in the bar. Dither makes each texel one color or the other in a 4×4 Bayer pattern; to clear fades the primary out instead. It fills everything the selection and island clip leave.
+
+Clone paints what lies at the source, moved by the same offset for every stroke until a new source is picked; a cross marks the spot under the brush. From the canvas it copies everything visible, from a photo it scales by scale (texels per photo pixel). It takes size, hardness, opacity, selection and island clip like the brush.
 
 Tile mode (in the header) shows the texture's neighbors. Brush, eraser, shapes and fill wrap at the edges, and layers pushed past an edge come back in on the other side, so pieces make seamless textures.
