@@ -118,7 +118,7 @@
 
   // The AO channel as a layer multiplied over the color.
   function aoLayer(ao: HTMLCanvasElement) {
-    return { id: 'bake:ao', canvas: ao, color: null, adjust: null, grunge: null, mask: null, blur: null, blend: 'multiply' as const, opacity: 1, visible: true, clip: false, island: null, x: app.size / 2, y: app.size / 2, scaleX: 1, scaleY: 1, turns: 0, flipX: false, flipY: false }
+    return { id: 'bake:ao', canvas: ao, color: null, adjust: null, grunge: null, mask: null, blur: null, outline: null, shadow: null, blend: 'multiply' as const, opacity: 1, visible: true, clip: false, island: null, x: app.size / 2, y: app.size / 2, scaleX: 1, scaleY: 1, turns: 0, flipX: false, flipY: false }
   }
 
   export function merge() {

@@ -45,6 +45,8 @@ export function mergeDown(composer: Composer) {
       grunge: null,
       mask: null,
       blur: null,
+      outline: null,
+      shadow: null,
     },
     at - 1,
   )

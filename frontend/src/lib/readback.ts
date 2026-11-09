@@ -43,7 +43,7 @@ export async function readBack(painted: string, base: string) {
   if (!layer) {
     const blank = document.createElement('canvas')
     blank.width = blank.height = size
-    const fresh: Layer = { id: blenderLayer, name: 'blender', canvas: blank, adjust: null, color: null, grunge: null, mask: null, blur: null, x: size / 2, y: size / 2, scaleX: 1, scaleY: 1, turns: 0, flipX: false, flipY: false, island: null, visible: true, opacity: 1, blend: 'normal', clip: false }
+    const fresh: Layer = { id: blenderLayer, name: 'blender', canvas: blank, adjust: null, color: null, grunge: null, mask: null, blur: null, outline: null, shadow: null, x: size / 2, y: size / 2, scaleX: 1, scaleY: 1, turns: 0, flipX: false, flipY: false, island: null, visible: true, opacity: 1, blend: 'normal', clip: false }
     layers.push(fresh)
     layer = layers[layers.length - 1]
   }

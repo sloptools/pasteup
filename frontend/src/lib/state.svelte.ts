@@ -40,6 +40,10 @@ export type Layer = {
   mask: HTMLCanvasElement | null
   // Gaussian blur, standard deviation in texels across and down; linked moves both.
   blur: { x: number; y: number; linked: boolean } | null
+  // Around the pixels that show, width in texels.
+  outline: { width: number; color: string } | null
+  // A hard copy of what shows (outline too) behind it, offset in texels.
+  shadow: { x: number; y: number; color: string; opacity: number } | null
   visible: boolean
   opacity: number
   blend: Blend
@@ -202,10 +206,10 @@ export function removeLayer(id: string) {
 }
 
 // A new layer above the others, made active.
-type NewLayer = Omit<Layer, 'id' | 'visible' | 'opacity' | 'blend' | 'clip' | 'adjust' | 'color' | 'grunge' | 'mask' | 'blur'> & Partial<Layer>
+type NewLayer = Omit<Layer, 'id' | 'visible' | 'opacity' | 'blend' | 'clip' | 'adjust' | 'color' | 'grunge' | 'mask' | 'blur' | 'outline' | 'shadow'> & Partial<Layer>
 
 export function addLayer(l: NewLayer, at = app.layers.length) {
-  const layer: Layer = { visible: true, opacity: 1, blend: 'normal', clip: false, adjust: null, color: null, grunge: null, mask: null, blur: null, ...l, id: newId() }
+  const layer: Layer = { visible: true, opacity: 1, blend: 'normal', clip: false, adjust: null, color: null, grunge: null, mask: null, blur: null, outline: null, shadow: null, ...l, id: newId() }
   app.layers.splice(at, 0, layer)
   app.active = layer.id
 }
@@ -215,8 +219,8 @@ export function clipBase(index: number): Layer | undefined {
   for (let i = index - 1; i >= 0; i--) if (!app.layers[i].clip) return app.layers[i]
 }
 
-// Adjustment, grunge and blur are the nested parts of a layer.
-export const cloneLayer = (l: Layer): Layer => ({ ...l, adjust: l.adjust && { ...l.adjust }, grunge: l.grunge && { ...l.grunge }, blur: l.blur && { ...l.blur } })
+// Adjustment, grunge, blur and effects are the nested parts of a layer.
+export const cloneLayer = (l: Layer): Layer => ({ ...l, adjust: l.adjust && { ...l.adjust }, grunge: l.grunge && { ...l.grunge }, blur: l.blur && { ...l.blur }, outline: l.outline && { ...l.outline }, shadow: l.shadow && { ...l.shadow } })
 
 // Layers whose pixels the color tools can change: pieces, or any layer's mask in mask mode.
 export const paintable = (l: Layer) => masking() || !!l.canvas

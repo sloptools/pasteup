@@ -24,7 +24,7 @@
 
   let armed = $state<string | null>(null)
   // Effect settings folded away to keep the list tall.
-  let folded = $state({ grunge: false, blur: false })
+  let folded = $state({ grunge: false, blur: false, shadow: false })
   let menu = $state<{ x: number; y: number; items: Item[] } | null>(null)
 
   // On a row the menu acts on that layer, which becomes active; elsewhere only new layers.
@@ -47,6 +47,8 @@
         ...(l.mask ? [{ label: 'remove mask', action: () => removeMask(l) }] : []),
         ...(l.grunge ? [{ label: 'remove grunge', action: () => (l.grunge = null) }] : []),
         ...(l.blur ? [{ label: 'remove blur', action: () => (l.blur = null) }] : []),
+        ...(l.outline ? [{ label: 'remove outline', action: () => (l.outline = null) }] : []),
+        ...(l.shadow ? [{ label: 'remove shadow', action: () => (l.shadow = null) }] : []),
         ...channels.filter((ch) => ch !== app.channel).map((ch) => ({ label: `copy to ${ch}`, action: () => copyTo(l, ch) })),
         { label: 'delete', action: () => removeLayer(l.id), danger: true },
       )
@@ -338,11 +340,46 @@
           </div>
         {/if}
       {/if}
-      {#if !active.mask || !active.grunge || (!active.blur && !active.adjust)}
+      {#if active.outline}
+        {@const o = active.outline}
+        <div class="props">
+          <span class="kind mono">outline</span>
+          <label class="swatch" title="Outline color" style:background={o.color}>
+            <input type="color" bind:value={o.color} />
+          </label>
+          <Slider compact bind:value={o.width} label="width" min={1} max={8} step={1} title="Width in texels" />
+          <div class="spacer"></div>
+          <button class="icon small" title="Remove the outline" onclick={() => (active.outline = null)}><Icon name="trash" /></button>
+        </div>
+      {/if}
+      {#if active.shadow}
+        {@const s = active.shadow}
+        <div class="props">
+          <button class="kind fold mono" title="Show or hide its settings" onclick={() => (folded.shadow = !folded.shadow)}>
+            <span class="caret" class:open={!folded.shadow}>▸</span>shadow
+          </button>
+          <label class="swatch" title="Shadow color; a light one up and left makes an edge highlight" style:background={s.color}>
+            <input type="color" bind:value={s.color} />
+          </label>
+          <span class="summary mono">{s.x}, {s.y}</span>
+          <div class="spacer"></div>
+          <button class="icon small" title="Remove the shadow" onclick={() => (active.shadow = null)}><Icon name="trash" /></button>
+        </div>
+        {#if !folded.shadow}
+          <div class="adjust">
+            <Slider bind:value={s.x} label="across" min={-16} max={16} step={1} title="Offset in texels, right is positive" />
+            <Slider bind:value={s.y} label="down" min={-16} max={16} step={1} title="Offset in texels, down is positive" />
+            <Slider bind:value={s.opacity} label="opacity" min={0} max={1} step={0.01} scale={100} />
+          </div>
+        {/if}
+      {/if}
+      {#if !active.mask || !active.grunge || (!active.adjust && (!active.blur || !active.outline || !active.shadow))}
         <div class="props adds">
           {#if !active.mask}<button class="text-button" title="A mask to paint where the layer shows (Q)" onclick={toggleMaskMode}>+ mask</button>{/if}
           {#if !active.grunge}<button class="text-button" title="A grunge mask: the layer shows only where it does" onclick={() => setGrunge(active, 'clouds')}>+ grunge</button>{/if}
           {#if !active.blur && !active.adjust}<button class="text-button" title="Gaussian blur, before the masks" onclick={() => (active.blur = { x: 2, y: 2, linked: true })}>+ blur</button>{/if}
+          {#if !active.outline && !active.adjust}<button class="text-button" title="An outline around what shows" onclick={() => (active.outline = { width: 1, color: '#000000' })}>+ outline</button>{/if}
+          {#if !active.shadow && !active.adjust}<button class="text-button" title="A hard shadow behind what shows" onclick={() => (active.shadow = { x: 1, y: 1, color: '#000000', opacity: 0.6 })}>+ shadow</button>{/if}
         </div>
       {/if}
     </div>
@@ -417,6 +454,7 @@
     color: var(--fg);
   }
   .adds {
+    flex-wrap: wrap;
     gap: 6px;
   }
   .icon.small {

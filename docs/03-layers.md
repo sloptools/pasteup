@@ -57,4 +57,15 @@ A color layer is the whole texture in one color, no pixels: change it with the s
 
 A gaussian blur on any layer but adjustments (+ blur in its settings): across and down in texels, the standard deviation as in GIMP; the chain moves both together. It comes before the masks, so they still cut sharp. Edges clamp, so a layer covering the texture doesn't darken at its border; in tile mode the blur wraps. A fake screen: a filled rect on its own layer, blurred, with screen or add for the glow.
 
-The list shows a thumbnail per layer (pieces cropped to their rectangle) and icons for blur, grunge and mask; the mask icon switches to painting it. In the settings, effects to add sit in one line (+ mask, + grunge, + blur); the triangle before grunge and blur folds their sliders away.
+## Outline and shadow
+
+On any layer but adjustments, after the masks, so they follow what shows; a layer clipped to an island keeps them inside it.
+
+| Effect | Settings |
+|---|---|
+| + outline | color, width 1–8 texels, around what shows |
+| + shadow | color, offset across and down in texels, opacity; a hard copy of the layer and its outline behind it |
+
+A light shadow one texel up and left draws the thin edge highlight of the look.
+
+The list shows a thumbnail per layer (pieces cropped to their rectangle) and icons for blur, grunge and mask; the mask icon switches to painting it. In the settings, effects to add sit in one line (+ mask, + grunge, + blur, + outline, + shadow); the triangle before grunge, blur and shadow folds their sliders away.

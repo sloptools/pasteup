@@ -2,6 +2,7 @@ import { CanvasSource, Container, Graphics, RenderTexture, Sprite, Texture, type
 import { AdjustPass } from './adjust'
 import { BlendPass } from './blend'
 import { BlurPass } from './blur'
+import { EffectsPass } from './effects'
 import { FinishPass, type Finish } from './finish'
 import { eraser, grunge } from './grunge.svelte'
 import { eachFace } from './uv'
@@ -16,6 +17,7 @@ export class Composer {
   private pass: BlendPass
   private adjustPass: AdjustPass
   private blurPass: BlurPass
+  private effectsPass: EffectsPass
   private finishPass: FinishPass
   // Ping-pong pair for laying the layers together.
   private acc: [RenderTexture, RenderTexture]
@@ -38,6 +40,7 @@ export class Composer {
     this.pass = new BlendPass(renderer)
     this.adjustPass = new AdjustPass(renderer)
     this.blurPass = new BlurPass(renderer)
+    this.effectsPass = new EffectsPass(renderer)
     this.finishPass = new FinishPass(renderer)
   }
 
@@ -125,7 +128,7 @@ export class Composer {
     const canvas = live && !live.mask ? live.canvas : l.canvas
     const size = this.target.width
     const mask = this.liveMask(l)?.canvas ?? l.mask
-    const sig = [canvas && idOf(canvas), l.color, mask && idOf(mask), live?.rev, l.x, l.y, l.scaleX, l.scaleY, l.turns, l.flipX, l.flipY, l.island, size, layout && idOf(layout), this.wrap.x, this.wrap.y, JSON.stringify(l.grunge), JSON.stringify(l.blur), grunge.loaded].join()
+    const sig = [canvas && idOf(canvas), l.color, mask && idOf(mask), live?.rev, l.x, l.y, l.scaleX, l.scaleY, l.turns, l.flipX, l.flipY, l.island, size, layout && idOf(layout), this.wrap.x, this.wrap.y, JSON.stringify(l.grunge), JSON.stringify(l.blur), JSON.stringify(l.outline), JSON.stringify(l.shadow), grunge.loaded].join()
     const entry = this.entry(l.id)
     if (entry.sig === sig) return entry.rt
 
@@ -158,6 +161,7 @@ export class Composer {
     // Blur before the masks, so they still cut sharp.
     if (l.blur) this.blurPass.draw(entry.rt, l.blur.x, l.blur.y, this.wrap)
     this.applyMask(l, entry.rt)
+    if (l.outline || l.shadow) this.effectsPass.draw(entry.rt, l, l.island !== null && layout ? this.mask(l.island, layout) : null, this.wrap)
     entry.sig = sig
     return entry.rt
   }
