@@ -49,7 +49,7 @@ All maps tile, so masks stay seamless in tile mode.
 
 ## Painted masks and color layers
 
-A painted mask (+ mask, or Q; the bin or right-click removes it) decides where its layer shows, at texture size; it multiplies with the grunge mask. While it is painted (mask in the canvas bar, mask chip in the layer row), the color tools work on it: brush shows, eraser hides, fill shows, a gradient sets it from shown to hidden (right button: the other way), shapes show. Opacity, hardness, selection and island clip apply. Dirt running down from an edge: a gradient on the mask under a grunge mask stretched down.
+A painted mask (+ mask, or Q; the bin or right-click removes it) decides where its layer shows, at texture size; it multiplies with the grunge mask. While it is painted (mask in the options bar, mask chip in the layer row), the color tools work on it: brush shows, eraser hides, fill shows, a gradient sets it from shown to hidden (right button: the other way), shapes show. Opacity, hardness, selection and island clip apply. Dirt running down from an edge: a gradient on the mask under a grunge mask stretched down.
 
 A color layer is the whole texture in one color, no pixels: change it with the swatch in its settings, or take the primary color. It takes paint only on its mask.
 

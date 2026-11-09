@@ -6,7 +6,7 @@
 | drag | select; a click without a drag deselects |
 | ⇧ drag, ⌥ drag | add to, take from the selection |
 | ⌘A, ⌘D, ⌘⇧I | select all, deselect, invert |
-| Esc, ✕ in the canvas bar | deselect, in every tool |
+| Esc, ✕ in the options bar | deselect, in every tool |
 | ⌘C, ⌘⇧C | copy from the active layer, copy everything visible |
 | ⌘X | cut from the active layer |
 | ⌘V | paste floating into the active layer: move it, Enter or the next action places it, Esc discards it |

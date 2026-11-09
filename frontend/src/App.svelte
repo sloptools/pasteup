@@ -246,8 +246,25 @@
     <button class="text-button" title="Export the texture as PNG (⌘⇧E)" onclick={exportPNG}>export</button>
   </header>
 
+  <div class="options">
+    <button class="icon" title="Show or hide the refs (Tab)" onclick={() => toggleRefs(false)}><Icon name="panel" size={11} /></button>
+    {#if masking()}
+      <span class="masking mono" title="Color tools paint the active layer's mask: brush shows, eraser hides">
+        mask
+        <button class="icon" title="Back to the layer's pixels (Q, Esc)" onclick={() => (app.maskOf = null)}><Icon name="x" size={11} /></button>
+      </span>
+    {/if}
+    <ToolOptions />
+    {#if app.selection}
+      <span class="selected mono">
+        selection {app.selection.w}×{app.selection.h}
+        <button class="icon" title="Deselect (Esc, ⌘D)" onclick={() => (app.selection = null)}><Icon name="x" size={11} /></button>
+      </span>
+    {/if}
+  </div>
+
   <section class="refs" class:focus={app.focus === 'refs'}>
-    <div class="bar">
+    <div class="refbar">
       <div class="seg" title="The photos, or the model in 3D with the texture (`)">
         <button class:on={app.refView === 'refs'} onclick={() => (app.refView = 'refs')}>refs</button>
         <button class:on={app.refView === '3d'} onclick={() => (app.refView = '3d')}>3D</button>
@@ -270,24 +287,7 @@
     {/if}
   </section>
 
-  <section class="canvas" class:focus={app.focus === 'canvas'}>
-    <div class="bar">
-      <button class="icon" title="Show or hide the refs (Tab)" onclick={() => toggleRefs(false)}><Icon name="panel" size={11} /></button>
-      <span class="caps">canvas</span>
-      {#if masking()}
-        <span class="masking mono" title="Color tools paint the active layer's mask: brush shows, eraser hides">
-          mask
-          <button class="icon" title="Back to the layer's pixels (Q, Esc)" onclick={() => (app.maskOf = null)}><Icon name="x" size={11} /></button>
-        </span>
-      {/if}
-      <ToolOptions />
-      {#if app.selection}
-        <span class="selected mono">
-          selection {app.selection.w}×{app.selection.h}
-          <button class="icon" title="Deselect (Esc, ⌘D)" onclick={() => (app.selection = null)}><Icon name="x" size={11} /></button>
-        </span>
-      {/if}
-    </div>
+  <section class="canvas">
     <div class="work">
       <div class="view"><Canvas bind:this={canvas} /></div>
       <Tools />
@@ -313,18 +313,20 @@
   .shell {
     height: 100%;
     display: grid;
-    grid-template-rows: 44px minmax(0, 1fr) 24px;
+    grid-template-rows: 44px 32px minmax(0, 1fr) 24px;
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 260px;
-    grid-template-areas: 'head head head' 'refs canvas side' 'foot foot foot';
+    grid-template-areas: 'head head head' 'opts opts side' 'refs canvas side' 'foot foot foot';
   }
   .shell.refs-closed {
     grid-template-columns: 0 minmax(0, 1fr) 260px;
   }
   .shell.refs-max {
+    grid-template-rows: 44px 0 minmax(0, 1fr) 24px;
     grid-template-columns: minmax(0, 1fr) 0 0;
   }
   .refs-closed .refs,
   .refs-max .canvas,
+  .refs-max .options,
   .refs-max aside {
     visibility: hidden;
   }
@@ -399,22 +401,40 @@
   }
   .refs {
     grid-area: refs;
+    position: relative;
     border-right: 1px solid var(--line);
   }
   .canvas {
     grid-area: canvas;
   }
-  .bar {
-    height: 32px;
-    flex: none;
+  .options {
+    grid-area: opts;
+    min-width: 0;
     display: flex;
     align-items: center;
     gap: 10px;
     padding: 0 10px;
     border-bottom: 1px solid var(--line);
+    overflow: hidden;
   }
-  section.focus .bar .caps {
-    color: var(--fg);
+  /* Floats over the photos or the model, top left. */
+  .refbar {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    height: 30px;
+    padding: 0 6px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    box-shadow: 0 4px 14px rgb(0 0 0 / 0.3);
+  }
+  .refs.focus .refbar {
+    border-color: var(--faint);
   }
   .view {
     flex: 1;

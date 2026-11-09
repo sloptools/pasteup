@@ -1,6 +1,6 @@
 # Tools
 
-The tools run down the strip right of the canvas; their settings (tip, size, opacity) are in the bar above the canvas. A small arrow in a button's corner means variants: hold the button or right-click it.
+The tools run down the strip right of the canvas; their settings (tip, size, opacity) are in the options bar under the header. A small arrow in a button's corner means variants: hold the button or right-click it.
 
 | Key | Effect |
 |---|---|
@@ -46,7 +46,7 @@ Transform: corners keep the aspect or not (keep, free in the bar), edges stretch
 
 With the tip list open, ↑ and ↓ pick the tip, Enter or Esc close it.
 
-Every slider: click its value to type one, Enter sets it, Esc cancels. Values read as shown (opacity in %, levels in 0–255). In the bar above the canvas the values stand alone: drag them sideways to change them.
+Every slider: click its value to type one, Enter sets it, Esc cancels. Values read as shown (opacity in %, levels in 0–255). In the options bar the values stand alone: drag them sideways to change them.
 
 Island clip needs a model. It counts every texel an island touches, even partly, so paint reaches the seams; the island under the cursor shows faintly. Unlike the island tool, which clips a whole layer for good, it only limits where a stroke lands.
 
