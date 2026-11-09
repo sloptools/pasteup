@@ -36,10 +36,11 @@
       icon: () => app.shape,
       variants: { options: shapes, get: () => app.shape, set: (v) => (app.shape = v as Shape), icon: (v) => v as Shape },
     },
+    { id: 'text', label: 'text', key: 'Y', icon: () => 'text' },
   ]
 
   // Tools by kind, with a line between kinds: placing, selecting, painting, filling.
-  const groups: CanvasTool[][] = [['move', 'transform', 'island'], ['select'], ['brush', 'eraser', 'clone'], ['fill', 'shape']]
+  const groups: CanvasTool[][] = [['move', 'transform', 'island'], ['select'], ['brush', 'eraser', 'clone'], ['fill', 'shape', 'text']]
   const group = (t: Tool) => groups.findIndex((g) => g.includes(t.id))
 
   // The tool whose tip shows, after a short rest on its button.

@@ -19,6 +19,8 @@
   import { combine, selection, type Combine } from './selection'
   import { place as clipPlace, useComposer } from './clipboard'
   import { refreshThumbs } from './thumbs.svelte'
+  import { newText } from './text'
+  import TextEdit from './TextEdit.svelte'
 
   let el: HTMLDivElement
   let view: View
@@ -118,7 +120,7 @@
 
   // The AO channel as a layer multiplied over the color.
   function aoLayer(ao: HTMLCanvasElement) {
-    return { id: 'bake:ao', canvas: ao, color: null, adjust: null, grunge: null, mask: null, blur: null, outline: null, shadow: null, blend: 'multiply' as const, opacity: 1, visible: true, clip: false, island: null, x: app.size / 2, y: app.size / 2, scaleX: 1, scaleY: 1, turns: 0, flipX: false, flipY: false }
+    return { id: 'bake:ao', canvas: ao, color: null, adjust: null, grunge: null, mask: null, blur: null, outline: null, shadow: null, text: null, blend: 'multiply' as const, opacity: 1, visible: true, clip: false, island: null, x: app.size / 2, y: app.size / 2, scaleX: 1, scaleY: 1, turns: 0, flipX: false, flipY: false }
   }
 
   export function merge() {
@@ -608,12 +610,33 @@
     compose()
   }
 
+  // A click with the text tool types into the text layer there, or starts one.
+  function textAt([x, y]: [number, number]) {
+    const hit = app.layers.findLast((l) => l.text && l.visible && hits(l, x, y))
+    checkpoint()
+    if (!hit) return newText(Math.floor(x), Math.floor(y))
+    app.active = hit.id
+    app.textEdit = hit.id
+  }
+
+  // The text layer's bottom left on screen, for the field typing into it.
+  function textPlace() {
+    const l = app.layers.find((l) => l.id === app.textEdit)
+    if (!l?.canvas || !view) return null
+    const b = box(l)
+    return { left: view.world.x + b.x * zoom, top: view.world.y + (b.y + b.h) * zoom + 6 }
+  }
+
   function paintEnd() {
     dragFrom = null
     if (!stroke) return
     const l = app.layers.find((l) => l.id === stroke!.layer)
     if (l && stroke.mask) l.mask = stroke.paint.canvas
-    else if (l) l.canvas = stroke.paint.canvas
+    else if (l) {
+      l.canvas = stroke.paint.canvas
+      // Painted on, a text layer is pixels from now on.
+      l.text = null
+    }
     composer.stroke(stroke.layer, null)
     stroke = null
     checkpoint()
@@ -646,6 +669,11 @@
         marquee.start(app.selectMode, p)
         el.setPointerCapture(e.pointerId)
         return
+      }
+      if (app.canvasTool === 'text') {
+        // The click would take the focus from the field it opens.
+        e.preventDefault()
+        return textAt(p)
       }
       if (e.shiftKey && app.canvasTool !== 'transform') return pick(p)
       const l = activeLayer()
@@ -727,7 +755,11 @@
   }
 </script>
 
-<div class="canvas" class:cross={app.canvasTool === 'island' || app.canvasTool === 'select' || painting || app.picking} bind:this={el}>
+<div class="canvas" class:cross={app.canvasTool === 'island' || app.canvasTool === 'select' || painting || app.picking}
+  class:typing={app.canvasTool === 'text'} bind:this={el}>
+  {#if app.textEdit}
+    <TextEdit place={textPlace} />
+  {/if}
   {#if hover}
     <div class="coords">{hover[0]}, {hover[1]}{hoverIsland !== null ? ` · island ${hoverIsland}` : ''}</div>
   {/if}
@@ -743,6 +775,9 @@
   }
   .canvas.cross {
     cursor: crosshair;
+  }
+  .canvas.typing {
+    cursor: text;
   }
   .canvas :global(canvas) {
     display: block;

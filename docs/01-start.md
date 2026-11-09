@@ -23,5 +23,6 @@
 | :clone: | S | clone, ⌥ click: source in the canvas or a photo |
 | :fill: | G | fill, ⇧G gradient |
 | :rect: | U | shapes, L line |
+| :text: | Y | text |
 
 **⌥ click** picks a color. **Q** paints the layer's mask. **Esc** drops a selection.

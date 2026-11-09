@@ -2,9 +2,11 @@ import { activeLayer, app, blends, masking, removeLayer, say, tiles, fillModes, 
 import { clear, lift, place } from './clipboard'
 import { flip, scaleBy, turn } from './transform'
 import { toggleMaskMode } from './layerOps'
+import { endText } from './text'
 
 // Picks a tool; the transform tool first lifts a selection into a floating layer.
 export function useTool(tool: CanvasTool) {
+  if (app.textEdit) endText()
   if (tool === 'transform') lift()
   else if (tool !== 'move') place()
   app.canvasTool = tool
@@ -57,6 +59,9 @@ export function canvasKey(e: KeyboardEvent): boolean {
       return cycleTip(e.key === 'B' ? 'brush' : 'eraser')
     case 's':
       useTool('clone')
+      return true
+    case 'y':
+      useTool('text')
       return true
     case 'S':
       return cycleTip('clone')

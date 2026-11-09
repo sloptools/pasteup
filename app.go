@@ -139,6 +139,10 @@ func (a *App) OpenGrungeFolder() error {
 	if err != nil {
 		return err
 	}
+	return openFolder(dir)
+}
+
+func openFolder(dir string) error {
 	switch goruntime.GOOS {
 	case "darwin":
 		return exec.Command("open", dir).Start()
@@ -148,11 +152,15 @@ func (a *App) OpenGrungeFolder() error {
 	return exec.Command("xdg-open", dir).Start()
 }
 
-// middleware serves dropped photos, project entries and the grunge maps, which are too large for bindings.
+// middleware serves dropped photos, project entries, grunge maps and fonts, which are too large for bindings.
 func (a *App) middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/project" {
 			serveEntry(w, r)
+			return
+		}
+		if r.URL.Path == "/font" {
+			serveFont(w, r)
 			return
 		}
 		if r.URL.Path == "/grunge" {

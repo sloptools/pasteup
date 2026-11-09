@@ -30,6 +30,10 @@ export function ExportPNG(arg1, arg2, arg3) {
   return window['go']['main']['App']['ExportPNG'](arg1, arg2, arg3);
 }
 
+export function Fonts() {
+  return window['go']['main']['App']['Fonts']();
+}
+
 export function GrungeMaps() {
   return window['go']['main']['App']['GrungeMaps']();
 }
@@ -40,6 +44,10 @@ export function LospecPalette(arg1) {
 
 export function OpenDialog() {
   return window['go']['main']['App']['OpenDialog']();
+}
+
+export function OpenFontsFolder() {
+  return window['go']['main']['App']['OpenFontsFolder']();
 }
 
 export function OpenGrungeFolder() {

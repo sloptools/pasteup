@@ -5,7 +5,10 @@
   import { discard, place } from './clipboard'
   import { gradientControl } from './gradientEdit'
   import { box, fit, flip, turn } from './transform'
-  import { activeLayer, app, selectModes, shapes, tips, type Layer, type PaintTool, type Tip } from './state.svelte'
+  import { builtInNames, fonts, loadFonts, pixelSizes } from './fonts.svelte'
+  import { setText } from './text'
+  import { OpenFontsFolder } from '../../wailsjs/go/main/App'
+  import { activeLayer, app, selectModes, shapes, tips, type Layer, type PaintTool, type Text, type Tip } from './state.svelte'
 
   const turns: [() => void, string, 'rotate' | 'flip', string][] = [
     [() => withLayer((l) => turn(l, -1)), 'Rotate 90° counter-clockwise (⇧R)', 'rotate', 'mirror'],
@@ -47,6 +50,25 @@
   }
 
   let open = $state(false)
+
+  // The text bar sets the active text layer, or how the next one starts.
+  const textLayer = $derived(activeLayer()?.text ? activeLayer() : undefined)
+  const style = $derived(textLayer?.text ?? { ...app.textStyle, color: app.colors[0] })
+
+  // New text takes the primary color, so without a text layer the swatch sets that.
+  function setStyle(change: Partial<Text>) {
+    if (textLayer) setText(textLayer, change)
+    const { color, value, ...rest } = change
+    if (color && !textLayer) app.colors[0] = color
+    Object.assign(app.textStyle, rest)
+  }
+
+  function chooseFont(select: HTMLSelectElement) {
+    const pixel = pixelSizes[select.value]
+    if (select.value !== ':folder') return setStyle({ font: select.value, ...(pixel && style.size % pixel ? { size: pixel } : {}) })
+    select.value = style.font
+    OpenFontsFolder()
+  }
 
   function choose(tool: PaintTool, tip: Tip) {
     app.tip[tool] = tip
@@ -153,6 +175,28 @@
     {/if}
     <Slider compact bind:value={app.paintOpacity.shape} label="opacity" min={0.01} max={1} step={0.01} scale={100} title="Opacity (1–9, 0)" />
     {@render islandClip()}
+  {:else if app.canvasTool === 'text'}
+    <select class="mono font" title="Font" value={style.font} onfocus={loadFonts} onchange={(e) => chooseFont(e.currentTarget)}>
+      {#each builtInNames as name}<option value={name}>{name}</option>{/each}
+      {#if fonts.own.length}<option disabled>──</option>{/if}
+      {#each fonts.own as f}<option value={f.name}>{f.name}</option>{/each}
+      {#if fonts.system.length}<option disabled>──</option>{/if}
+      {#each fonts.system as name}<option value={name}>{name}</option>{/each}
+      {#if ![...builtInNames, ...fonts.own.map((f) => f.name), ...fonts.system].includes(style.font)}<option value={style.font}>{style.font} (missing)</option>{/if}
+      <option disabled>──</option>
+      <option value=":folder">fonts folder…</option>
+    </select>
+    <label class="swatch" title="Text color" style:background={style.color}>
+      <input type="color" value={style.color} oninput={(e) => setStyle({ color: e.currentTarget.value })} />
+    </label>
+    <Slider compact bind:value={() => style.size, (v) => setStyle({ size: v })} label="size" min={4} max={128} step={1} title="Size in texels" />
+    <Slider compact bind:value={() => style.spacing, (v) => setStyle({ spacing: v })} label="spacing" min={-4} max={32} step={1} title="Extra space between letters in texels" />
+    <button class="check" class:on={style.vertical} title="Letters stacked; lines become columns from the right" onclick={() => setStyle({ vertical: !style.vertical })}>
+      <span class="box"></span>vertical
+    </button>
+    <button class="check" class:on={style.hard} title="Each texel full or empty, no soft edges" onclick={() => setStyle({ hard: !style.hard })}>
+      <span class="box"></span>hard
+    </button>
   {:else if app.canvasTool === 'select'}
     <div class="seg">
       {#each selectModes as mode}
@@ -281,6 +325,30 @@
   }
   .size input:focus {
     border-color: var(--dim);
+  }
+  .font {
+    height: 22px;
+    max-width: 180px;
+    padding: 0 6px;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: var(--bg);
+    color: var(--fg);
+    font: 12px var(--mono);
+  }
+  .swatch {
+    position: relative;
+    flex: none;
+    width: 18px;
+    height: 18px;
+    border: 1px solid var(--faint);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+  .swatch input {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
   }
   .turns {
     display: flex;

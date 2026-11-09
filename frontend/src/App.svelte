@@ -24,6 +24,7 @@
   import { ExportPNG, OpenModel, SetDirty } from '../wailsjs/go/main/App'
   import { OnFileDrop } from '../wailsjs/runtime/runtime'
   import { dirOf } from './lib/paths'
+  import { loadFonts } from './lib/fonts.svelte'
 
   let canvas: Canvas
   let refs: RefSpace
@@ -80,7 +81,7 @@
   }
 
   function onKey(e: KeyboardEvent) {
-    if (e.target instanceof HTMLInputElement && e.target.type === 'text') return
+    if ((e.target instanceof HTMLInputElement && e.target.type === 'text') || e.target instanceof HTMLTextAreaElement) return
     if (e.key === 'Tab') {
       e.preventDefault()
       toggleRefs(e.shiftKey)
@@ -184,6 +185,7 @@
   onMount(() => {
     track()
     loadNames()
+    loadFonts()
     markClean()
     if (!wails) return
     autosave()

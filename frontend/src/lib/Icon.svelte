@@ -33,6 +33,7 @@
     blur: 'M4 2h3v1H4z M2 4h1v3H2z M8 4h1v3H8z M4 8h3v1H4z M3 3h1v1H3z M7 3h1v1H7z M3 7h1v1H3z M7 7h1v1H7z M5 5h1v1H5z',
     line: 'M8 2h1v1H8z M7 3h1v1H7z M6 4h1v1H6z M5 5h1v1H5z M4 6h1v1H4z M3 7h1v1H3z M2 8h1v1H2z',
     picker: 'M8 1h2v1H8z M7 2h3v1H7z M5 3h1v1H5z M7 3h2v1H7z M6 4h1v1H6z M5 5h1v1H5z M7 5h1v1H7z M4 6h1v1H4z M6 6h1v1H6z M3 7h1v1H3z M5 7h1v1H5z M2 8h1v1H2z M4 8h1v1H4z M1 9h3v1H1z',
+    text: 'M1 1h9v2H1z M1 3h1v1H1z M9 3h1v1H9z M4 3h3v6H4z M3 9h5v1H3z',
     round: 'M4 2h3v1H4z M3 3h5v1H3z M2 4h7v3H2z M3 7h5v1H3z M4 8h3v1H4z',
     square: 'M2 2h7v7H2z',
     clone: 'M4 1h3v1H4z M4 2h1v2H4z M6 2h1v2H6z M4 4h3v1H4z M2 5h7v1H2z M2 6h1v1H2z M8 6h1v1H8z M2 7h7v1H2z M1 9h9v1H1z',

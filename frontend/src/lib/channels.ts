@@ -61,6 +61,7 @@ const virtual = (id: string, l: Partial<Layer>): Layer => ({
   blur: null,
   outline: null,
   shadow: null,
+  text: null,
   x: 0,
   y: 0,
   scaleX: 1,

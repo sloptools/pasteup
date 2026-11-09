@@ -16,11 +16,15 @@ export function DiscardRecovery(arg1:string):Promise<void>;
 
 export function ExportPNG(arg1:string,arg2:string,arg3:Record<string, string>):Promise<string>;
 
+export function Fonts():Promise<Array<string>>;
+
 export function GrungeMaps():Promise<Array<string>>;
 
 export function LospecPalette(arg1:string):Promise<main.Palette>;
 
 export function OpenDialog():Promise<string>;
+
+export function OpenFontsFolder():Promise<void>;
 
 export function OpenGrungeFolder():Promise<void>;
 

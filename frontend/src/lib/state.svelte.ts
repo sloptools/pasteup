@@ -44,6 +44,8 @@ export type Layer = {
   outline: { width: number; color: string } | null
   // A hard copy of what shows (outline too) behind it, offset in texels.
   shadow: { x: number; y: number; color: string; opacity: number } | null
+  // A text layer: its pixels are drawn from this until painted on.
+  text: Text | null
   visible: boolean
   opacity: number
   blend: Blend
@@ -68,6 +70,9 @@ export type Blend = (typeof blends)[number]
 
 export type Region = 'refs' | 'canvas' | 'layers'
 
+// Size and spacing in texels; vertical stacks the letters, lines become columns from the right.
+export type Text = { value: string; font: string; size: number; spacing: number; color: string; vertical: boolean; hard: boolean }
+
 // Texture channels, each a stack of layers: color, glow, ambient occlusion, roughness.
 export const channels = ['color', 'emission', 'ao', 'roughness'] as const
 export type Channel = (typeof channels)[number]
@@ -76,7 +81,7 @@ export const tiles = ['off', 'x', 'y', 'xy'] as const
 export type Tile = (typeof tiles)[number]
 export const wraps = (t: Tile) => ({ x: t === 'x' || t === 'xy', y: t === 'y' || t === 'xy' })
 
-export type CanvasTool = 'move' | 'transform' | 'island' | 'select' | 'brush' | 'eraser' | 'clone' | 'fill' | 'shape'
+export type CanvasTool = 'move' | 'transform' | 'island' | 'select' | 'brush' | 'eraser' | 'clone' | 'fill' | 'shape' | 'text'
 export const selectModes = ['rect', 'lasso'] as const
 export type SelectMode = (typeof selectModes)[number]
 export type PaintTool = 'brush' | 'eraser' | 'clone'
@@ -153,6 +158,10 @@ export const app = $state({
   // Clone source: a texel, or a point in a photo; anchor is the texel the first stroke
   // after picking it started at, so later strokes keep the same offset.
   clone: null as { photo: string | null; x: number; y: number; anchor: [number, number] | null } | null,
+  // How the next text layer starts.
+  textStyle: { font: 'Black Ops One', size: 16, spacing: 0, vertical: false, hard: true },
+  // The text layer being typed into.
+  textEdit: null as string | null,
   // Texels per photo pixel when cloning from a photo.
   cloneScale: 0.25,
   // The source point under the brush, in photo pixels, for the mark in the refs.
@@ -206,10 +215,10 @@ export function removeLayer(id: string) {
 }
 
 // A new layer above the others, made active.
-type NewLayer = Omit<Layer, 'id' | 'visible' | 'opacity' | 'blend' | 'clip' | 'adjust' | 'color' | 'grunge' | 'mask' | 'blur' | 'outline' | 'shadow'> & Partial<Layer>
+type NewLayer = Omit<Layer, 'id' | 'visible' | 'opacity' | 'blend' | 'clip' | 'adjust' | 'color' | 'grunge' | 'mask' | 'blur' | 'outline' | 'shadow' | 'text'> & Partial<Layer>
 
 export function addLayer(l: NewLayer, at = app.layers.length) {
-  const layer: Layer = { visible: true, opacity: 1, blend: 'normal', clip: false, adjust: null, color: null, grunge: null, mask: null, blur: null, outline: null, shadow: null, ...l, id: newId() }
+  const layer: Layer = { visible: true, opacity: 1, blend: 'normal', clip: false, adjust: null, color: null, grunge: null, mask: null, blur: null, outline: null, shadow: null, text: null, ...l, id: newId() }
   app.layers.splice(at, 0, layer)
   app.active = layer.id
 }
@@ -220,7 +229,7 @@ export function clipBase(index: number): Layer | undefined {
 }
 
 // Adjustment, grunge, blur and effects are the nested parts of a layer.
-export const cloneLayer = (l: Layer): Layer => ({ ...l, adjust: l.adjust && { ...l.adjust }, grunge: l.grunge && { ...l.grunge }, blur: l.blur && { ...l.blur }, outline: l.outline && { ...l.outline }, shadow: l.shadow && { ...l.shadow } })
+export const cloneLayer = (l: Layer): Layer => ({ ...l, adjust: l.adjust && { ...l.adjust }, grunge: l.grunge && { ...l.grunge }, blur: l.blur && { ...l.blur }, outline: l.outline && { ...l.outline }, shadow: l.shadow && { ...l.shadow }, text: l.text && { ...l.text } })
 
 // Layers whose pixels the color tools can change: pieces, or any layer's mask in mask mode.
 export const paintable = (l: Layer) => masking() || !!l.canvas

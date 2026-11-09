@@ -20,6 +20,7 @@ The tools run down the strip right of the canvas; their settings (tip, size, opa
 | ⇧T | tile mode: off, x, y, xy |
 | O | tile mode: shift the view by half a texture, to bring a seam to the middle |
 | U, ⇧U | shape, next kind (rect, rect filled, ellipse, ellipse filled, line) |
+| Y | text: click to type a new text layer, or into the one there; ⏎ ends, ⇧⏎ a new line |
 | L | line: drag from end to end, as wide as the outline; ⇧ keeps it level, plumb or diagonal |
 | ⇧ drag, ⌥ drag | shape: square or circle, from the center |
 | [, ] | brush or eraser size, shape outline width, in texels |
@@ -52,5 +53,17 @@ Island clip needs a model. It counts every texel an island touches, even partly,
 Gradient: a click without a drag sets up nothing; angle and length can also be typed in the bar. Dither makes each texel one color or the other in a 4×4 Bayer pattern; to clear fades the primary out instead. It fills everything the selection and island clip leave.
 
 Clone paints what lies at the source, moved by the same offset for every stroke until a new source is picked; a cross marks the spot under the brush. From the canvas it copies everything visible, from a photo it scales by scale (texels per photo pixel). It takes size, hardness, opacity, selection and island clip like the brush.
+
+Text: font, color, size and spacing in texels, vertical (letters stacked, lines become columns from the right), hard (each texel full or empty). They set the active text layer, or the next one. A text layer is a piece like any other: transform it, fit it to an island (F), give it an outline and a shadow; painting on it turns it into pixels for good. Pixel fonts are crisp at multiples of their size: Silkscreen 8, Fusion Pixel 12; picking one sets that size. Heavy fonts like Dela Gothic One need 32 texels and more.
+
+| Font | For |
+|---|---|
+| Black Ops One, Big Shoulders Stencil | military, stencils |
+| Bebas Neue, Anton, Archivo Black | buildings, industry, signs |
+| Silkscreen, Fusion Pixel | small text; Fusion Pixel has Chinese and Japanese |
+| ZCOOL QingKe HuangYou | Chinese signs, simplified and traditional |
+| Dela Gothic One | Japanese signs |
+
+Your own fonts (.ttf, .otf, .woff, .woff2) go into the fonts folder (**fonts folder…** at the end of the font list); installed Chinese and Japanese system fonts (PingFang, Hiragino, YaHei, Yu Gothic) are listed too. A project keeps the drawn text, so it shows without the font; editing it needs the font again. The built-in fonts are under the SIL Open Font License.
 
 Tile mode (in the header) shows the texture's neighbors. Brush, eraser, shapes and fill wrap at the edges, and layers pushed past an edge come back in on the other side, so pieces make seamless textures.

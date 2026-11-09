@@ -31,6 +31,7 @@
         ['G ⇧G', 'fill, bucket or gradient'],
         ['U ⇧U', 'shape, next kind'],
         ['L', 'line (⇧ 45° steps)'],
+        ['Y', 'text (⏎ ends)'],
         ['X', 'swap colors'],
         ['⌥ click', 'pick a color'],
         ['⇧T O', 'tile mode, offset by half'],
