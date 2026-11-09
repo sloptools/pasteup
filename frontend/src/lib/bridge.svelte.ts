@@ -2,6 +2,7 @@ import { BridgeConnected, BridgeRequestSync, BridgeTexture } from '../../wailsjs
 import { EventsOn } from '../../wailsjs/runtime/runtime'
 import { addLayer, app, say, sizes, type Channel, type Layout } from './state.svelte'
 import { readBack } from './readback'
+import { fileOf } from './paths'
 import { resetHistory } from './history.svelte'
 import { addTexture, blank, current, empty, stateOf, switchTo, textureFor } from './textures.svelte'
 
@@ -39,7 +40,7 @@ async function importImages(images: Record<string, string>) {
     canvas.width = img.naturalWidth
     canvas.height = img.naturalHeight
     canvas.getContext('2d')!.drawImage(img, 0, 0)
-    const layer = { name: images[ch].replace(/^.*\//, ''), canvas, x: app.size / 2, y: app.size / 2, scaleX: app.size / canvas.width, scaleY: app.size / canvas.height, turns: 0, flipX: false, flipY: false, island: null }
+    const layer = { name: fileOf(images[ch]), canvas, x: app.size / 2, y: app.size / 2, scaleX: app.size / canvas.width, scaleY: app.size / canvas.height, turns: 0, flipX: false, flipY: false, island: null }
     if (ch === app.channel) addLayer(layer)
     else {
       const shown = { layers: app.layers, active: app.active }

@@ -114,9 +114,13 @@ def ensure_bsdf(mat):
     return bsdf
 
 
+def same_file(a, b):
+    return os.path.normcase(os.path.normpath(a)) == os.path.normcase(os.path.normpath(b))
+
+
 def load_image(tex, path, data=False):
     """Puts the file into an image node, reloading it when it is already there."""
-    if tex.image and bpy.path.abspath(tex.image.filepath) == path:
+    if tex.image and same_file(bpy.path.abspath(tex.image.filepath), path):
         tex.image.reload()
     else:
         img = bpy.data.images.load(path, check_existing=True)

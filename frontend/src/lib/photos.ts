@@ -1,5 +1,6 @@
 import { app, newId, type Photo } from './state.svelte'
 import { levels, type Levels } from './deskew'
+import { dirOf, fileOf } from './paths'
 
 const cache = new WeakMap<HTMLImageElement, Levels>()
 
@@ -36,10 +37,7 @@ async function add(sources: { name: string; dir: string; url: string }[], at: [n
 export function addPaths(paths: string[], at: [number, number]) {
   const sources = paths
     .filter((p) => imageExt.test(p))
-    .map((p) => {
-      const cut = p.lastIndexOf('/')
-      return { name: p.slice(cut + 1), dir: p.slice(0, cut), url: `/photo?path=${encodeURIComponent(p)}` }
-    })
+    .map((p) => ({ name: fileOf(p), dir: dirOf(p), url: `/photo?path=${encodeURIComponent(p)}` }))
   return add(sources, at)
 }
 

@@ -2,6 +2,7 @@ import { Confirm, DiscardRecovery, OpenDialog, ProjectManifest, Recovery, Recove
 import { layersKey, resetHistory } from './history.svelte'
 import { channels, app, newId, say, type Channel, type Layer, type Layout, type Photo, type Texture, type Tile } from './state.svelte'
 import { blank, setTextures, stateOf, type TextureState } from './textures.svelte'
+import { dirOf, fileOf } from './paths'
 
 // A .pasteup file: project.json, pieces/ (layer pixels and painted masks), refs/
 // (photo copies). Each texture's layers sit under their channels.
@@ -58,7 +59,7 @@ const changes = () => app.textures.map(textureKey).join('|') + JSON.stringify([a
 
 export const dirty = () => changes() !== project.saved
 
-export const projectName = () => project.path?.replace(/^.*\//, '').replace(/\.pasteup$/, '') ?? 'untitled'
+export const projectName = () => (project.path && fileOf(project.path).replace(/\.pasteup$/, '')) ?? 'untitled'
 
 // Nothing to save in a fresh app.
 export function markClean() {
@@ -201,7 +202,7 @@ export function discardRecovered() {
 export async function save(as = false) {
   let path = project.path
   if (as || !path) {
-    const dir = (project.path ?? app.layout?.path ?? '').replace(/\/[^/]*$/, '')
+    const dir = dirOf(project.path ?? app.layout?.path ?? '')
     path = await SaveDialog(dir, project.path ? projectName() : (app.layout?.name ?? 'texture'))
     if (!path) return
   }
@@ -224,7 +225,7 @@ function load(url: string): Promise<HTMLImageElement> {
 // With recovered, the file holds unsaved changes of another project: they open
 // unsaved, and saving goes to that project.
 export async function open(path: string, recovered = false) {
-  if (dirty() && !(await Confirm('Unsaved changes', `Open ${path.replace(/^.*\//, '')} and drop the changes?`, 'Open'))) return
+  if (dirty() && !(await Confirm('Unsaved changes', `Open ${fileOf(path)} and drop the changes?`, 'Open'))) return
   try {
     const m = upgrade(JSON.parse(await ProjectManifest(path)))
     const url = (entry: string) => `/project?path=${encodeURIComponent(path)}&entry=${encodeURIComponent(entry)}`
@@ -294,7 +295,7 @@ export async function open(path: string, recovered = false) {
 function upgrade(m: Manifest | ManifestV1): Manifest {
   if (m.version === 2) return m
   const { version, size, tile, layout, blend, active, channels, bakeAO, emissionStrength, ...shared } = m
-  const name = blend?.replace(/^.*\//, '').replace(/\.blend$/, '')
+  const name = blend && fileOf(blend).replace(/\.blend$/, '')
   const texture: TextureJson = {
     id: 'texture',
     name: name ?? layout?.name ?? 'texture',

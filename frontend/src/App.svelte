@@ -23,6 +23,7 @@
   import ToolOptions from './lib/ToolOptions.svelte'
   import { ExportPNG, OpenModel, SetDirty } from '../wailsjs/go/main/App'
   import { OnFileDrop } from '../wailsjs/runtime/runtime'
+  import { dirOf } from './lib/paths'
 
   let canvas: Canvas
   let refs: RefSpace
@@ -54,7 +55,7 @@
       }
       return
     }
-    const dir = app.layout?.path.replace(/\/[^/]*$/, '') ?? ''
+    const dir = dirOf(app.layout?.path ?? '')
     try {
       const path = await ExportPNG(dir, name, pngs)
       if (path) say(`exported ${path}`)
