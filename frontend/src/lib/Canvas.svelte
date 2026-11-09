@@ -611,8 +611,10 @@
   }
 
   // A click with the text tool types into the text layer there, or starts one.
+  // Anywhere in its box counts, a texel around it too, not just on the letters.
   function textAt([x, y]: [number, number]) {
-    const hit = app.layers.findLast((l) => l.text && l.visible && hits(l, x, y))
+    const inBox = (b: Box) => x >= b.x - 1 && y >= b.y - 1 && x < b.x + b.w + 1 && y < b.y + b.h + 1
+    const hit = app.layers.findLast((l) => l.text && l.visible && inBox(box(l)))
     checkpoint()
     if (!hit) return newText(Math.floor(x), Math.floor(y))
     app.active = hit.id
