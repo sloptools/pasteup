@@ -50,6 +50,14 @@
   }
 
   let open = $state(false)
+  // The list is fixed on screen below its button: the bar scrolls sideways, so it would cut it off.
+  let listAt = $state({ left: 0, top: 0 })
+
+  function toggleTips(e: MouseEvent) {
+    const r = (e.currentTarget as HTMLElement).getBoundingClientRect()
+    listAt = { left: r.left, top: r.bottom + 4 }
+    open = !open
+  }
 
   // The text bar sets the active text layer, or how the next one starts.
   const textLayer = $derived(activeLayer()?.text ? activeLayer() : undefined)
@@ -111,11 +119,11 @@
   {#if app.canvasTool === 'brush' || app.canvasTool === 'eraser' || app.canvasTool === 'clone'}
     {@const tool = app.canvasTool}
     <div class="tips">
-      <button class="current mono" title="Tip (⇧{{ brush: 'B', eraser: 'E', clone: 'S' }[tool]})" onclick={() => (open = !open)}>
+      <button class="current mono" title="Tip (⇧{{ brush: 'B', eraser: 'E', clone: 'S' }[tool]})" onclick={toggleTips}>
         {@render preview(app.tip[tool])}<span class="caret">▾</span>
       </button>
       {#if open}
-        <div class="list">
+        <div class="list" style:left="{listAt.left}px" style:top="{listAt.top}px">
           {#each tips as tip}
             <button class:on={app.tip[tool] === tip} title={tip} onclick={() => choose(tool, tip)}>{@render preview(tip)}</button>
           {/each}
@@ -277,11 +285,8 @@
     color: var(--dim);
   }
   .list {
-    position: absolute;
-    top: calc(100% + 4px);
-    left: 0;
+    position: fixed;
     z-index: 10;
-    min-width: 100%;
     display: flex;
     flex-direction: column;
     padding: 4px;
