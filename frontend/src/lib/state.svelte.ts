@@ -38,6 +38,9 @@ export type Layer = {
   grunge: Mask | null
   // Painted mask at texture size: the layer shows where it is opaque.
   mask: HTMLCanvasElement | null
+  // The piece repeats over the texture: gaps in texels, every other row moved
+  // across and every other column down by a share of the step.
+  repeat?: { x: number; y: number; shiftX: number; shiftY: number } | null
   // Gaussian blur, standard deviation in texels across and down; linked moves both.
   blur: { x: number; y: number; linked: boolean } | null
   // Around the pixels that show, width in texels.
@@ -130,8 +133,9 @@ export const app = $state({
   bakeAO: true,
   // How strongly the emission glows, in Blender and the 3D view.
   emissionStrength: 1,
-  // The crunch over the color: a palette (none, computed, or one of the project's),
-  // ordered dither, sharpen, and the PS1's 15-bit color.
+  // The crunch over the color: a palette (none, computed, or the chosen one),
+  // ordered dither, sharpen, and the PS1's 15-bit color. The chosen palette
+  // (null: the swatches) is what the color panel shows, mapped to or not.
   finish: { mode: 'off' as 'off' | 'auto' | 'fixed', colors: 64, palette: null as string | null, dither: 0, sharpen: 0, psx: false },
   palettes: [] as { name: string; colors: string[] }[],
   autoPalette: [] as string[],
@@ -229,18 +233,24 @@ export function clipBase(index: number): Layer | undefined {
 }
 
 // Adjustment, grunge, blur and effects are the nested parts of a layer.
-export const cloneLayer = (l: Layer): Layer => ({ ...l, adjust: l.adjust && { ...l.adjust }, grunge: l.grunge && { ...l.grunge }, blur: l.blur && { ...l.blur }, outline: l.outline && { ...l.outline }, shadow: l.shadow && { ...l.shadow }, text: l.text && { ...l.text } })
+export const cloneLayer = (l: Layer): Layer => ({ ...l, adjust: l.adjust && { ...l.adjust }, grunge: l.grunge && { ...l.grunge }, blur: l.blur && { ...l.blur }, outline: l.outline && { ...l.outline }, shadow: l.shadow && { ...l.shadow }, repeat: l.repeat && { ...l.repeat }, text: l.text && { ...l.text } })
 
 // Layers whose pixels the color tools can change: pieces, or any layer's mask in mask mode.
 export const paintable = (l: Layer) => masking() || !!l.canvas
 
 export const masking = () => app.maskOf !== null && app.maskOf === app.active
 
+export function chosenColors(): string[] {
+  const name = app.finish.palette
+  if (name === null) return app.swatches
+  return app.palettes.find((p) => p.name === name)?.colors ?? []
+}
+
 // The palette the finish maps to: computed, chosen, or none.
 export function paletteColors(): string[] {
   const f = app.finish
   if (f.mode === 'auto') return app.autoPalette
-  if (f.mode === 'fixed') return app.palettes.find((p) => p.name === f.palette)?.colors ?? []
+  if (f.mode === 'fixed') return chosenColors()
   return []
 }
 

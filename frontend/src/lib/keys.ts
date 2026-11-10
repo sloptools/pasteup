@@ -19,9 +19,12 @@ export function canvasKey(e: KeyboardEvent): boolean {
       useTool('move')
       return true
     case 'i':
+      app.picking = !app.picking
+      return true
+    case 'w':
       useTool('island')
       return true
-    case 'I':
+    case 'W':
       app.islandClip = !app.islandClip
       say(app.islandClip ? 'brush, fill and shapes keep to the island they start in' : 'island clip off')
       return true

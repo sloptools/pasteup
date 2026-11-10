@@ -53,6 +53,18 @@ A painted mask (+ mask, or Q; the bin or right-click removes it) decides where i
 
 A color layer is the whole texture in one color, no pixels: change it with the swatch in its settings, or take the primary color. It takes paint only on its mask.
 
+## Repeat
+
+A piece repeats over the whole texture (+ repeat in its settings), for wallpaper, tiles, bricks. The piece itself is the motif: move and scale it with the transform tool, paint on it, the copies follow.
+
+| Setting | Effect |
+|---|---|
+| gap x, gap y | texels between the copies |
+| shift x | every other row moves across, 50 for bricks |
+| shift y | every other column moves down, 50 for a half-drop wallpaper |
+
+Where it shows: clip it (⌘⌥G) to a filled rect on the layer below, or give it a mask. For a seamless texture, motif plus gap should divide the texture size.
+
 ## Blur
 
 A gaussian blur on any layer but adjustments (+ blur in its settings): across and down in texels, the standard deviation as in GIMP; the chain moves both together. It comes before the masks, so they still cut sharp. Edges clamp, so a layer covering the texture doesn't darken at its border; in tile mode the blur wraps. A fake screen: a filled rect on its own layer, blurred, with screen or add for the glow.

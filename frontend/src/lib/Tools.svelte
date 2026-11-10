@@ -11,7 +11,7 @@
   const tools: Tool[] = [
     { id: 'move', label: 'move', key: 'V', icon: () => 'move' },
     { id: 'transform', label: 'transform', key: 'T', icon: () => 'transform' },
-    { id: 'island', label: 'island', key: 'I', icon: () => 'island' },
+    { id: 'island', label: 'island', key: 'W', icon: () => 'island' },
     {
       id: 'select',
       label: 'select',

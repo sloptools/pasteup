@@ -1,4 +1,4 @@
-import { CanvasSource, Container, Graphics, RenderTexture, Sprite, Texture, type Renderer } from 'pixi.js'
+import { CanvasSource, Container, Graphics, RenderTexture, Sprite, Texture, TilingSprite, type Renderer } from 'pixi.js'
 import { AdjustPass } from './adjust'
 import { BlendPass } from './blend'
 import { BlurPass } from './blur'
@@ -128,7 +128,7 @@ export class Composer {
     const canvas = live && !live.mask ? live.canvas : l.canvas
     const size = this.target.width
     const mask = this.liveMask(l)?.canvas ?? l.mask
-    const sig = [canvas && idOf(canvas), l.color, mask && idOf(mask), live?.rev, l.x, l.y, l.scaleX, l.scaleY, l.turns, l.flipX, l.flipY, l.island, size, layout && idOf(layout), this.wrap.x, this.wrap.y, JSON.stringify(l.grunge), JSON.stringify(l.blur), JSON.stringify(l.outline), JSON.stringify(l.shadow), grunge.loaded].join()
+    const sig = [canvas && idOf(canvas), l.color, mask && idOf(mask), live?.rev, l.x, l.y, l.scaleX, l.scaleY, l.turns, l.flipX, l.flipY, l.island, size, layout && idOf(layout), this.wrap.x, this.wrap.y, JSON.stringify(l.grunge), JSON.stringify(l.blur), JSON.stringify(l.outline), JSON.stringify(l.shadow), JSON.stringify(l.repeat), grunge.loaded].join()
     const entry = this.entry(l.id)
     if (entry.sig === sig) return entry.rt
 
@@ -136,7 +136,17 @@ export class Composer {
     const pixels = new Container()
     if (l.color) pixels.addChild(new Graphics().rect(0, 0, size, size).fill(l.color))
     const shown = canvas && this.shown(l, canvas)
-    for (const dx of shown ? (this.wrap.x ? [-size, 0, size] : [0]) : []) {
+    let tiles: Texture | null = null
+    if (shown && l.repeat) {
+      const plain = shown === canvas && l.turns === 0 && !l.flipX && !l.flipY
+      const motif = plain ? canvas : raster(l).canvas
+      const at = plain ? box(l) : raster(l)
+      tiles = new Texture({ source: new CanvasSource({ resource: period(motif, l.repeat), scaleMode: 'nearest' }) })
+      const sprite = new TilingSprite({ texture: tiles, width: size, height: size })
+      sprite.tilePosition.set(Math.round(at.x), Math.round(at.y))
+      pixels.addChild(sprite)
+    }
+    for (const dx of shown && !l.repeat ? (this.wrap.x ? [-size, 0, size] : [0]) : []) {
       for (const dy of this.wrap.y ? [-size, 0, size] : [0]) {
         const sprite = new Sprite(this.piece(shown!))
         if (shown === canvas) place(sprite, l)
@@ -158,6 +168,7 @@ export class Composer {
     }
     this.renderer.render({ container: scene, target: entry.rt, clear: true, clearColor: [0, 0, 0, 0] })
     scene.destroy({ children: true })
+    tiles?.destroy(true)
     // Blur before the masks, so they still cut sharp.
     if (l.blur) this.blurPass.draw(entry.rt, l.blur.x, l.blur.y, this.wrap)
     this.applyMask(l, entry.rt)
@@ -229,7 +240,7 @@ export class Composer {
     if (!entry || l.adjust) return null
     const size = this.target.width
     let [x, y, w, h] = [0, 0, size, size]
-    if (l.canvas) {
+    if (l.canvas && !l.repeat) {
       const b = box(l)
       x = Math.max(0, Math.floor(b.x))
       y = Math.max(0, Math.floor(b.y))
@@ -345,6 +356,27 @@ function hidden(mask: HTMLCanvasElement, live: boolean) {
 // Pieces and layouts are replaced, never changed, so identity tells them apart.
 const objectIds = new WeakMap<object, number>()
 let nextId = 0
+// One period of a repeat: the motif in each cell, wrapped, with the shifts of
+// every other row and column.
+function period(motif: HTMLCanvasElement, r: NonNullable<Layer['repeat']>): HTMLCanvasElement {
+  const sx = motif.width + r.x
+  const sy = motif.height + r.y
+  const cols = r.shiftY ? 2 : 1
+  const rows = r.shiftX ? 2 : 1
+  const out = document.createElement('canvas')
+  out.width = sx * cols
+  out.height = sy * rows
+  const ctx = out.getContext('2d')!
+  for (let i = 0; i < cols; i++) {
+    for (let j = 0; j < rows; j++) {
+      const x = i * sx + (j % 2 ? Math.round(r.shiftX * sx) : 0)
+      const y = j * sy + (i % 2 ? Math.round(r.shiftY * sy) : 0)
+      for (const dx of [0, -out.width]) for (const dy of [0, -out.height]) ctx.drawImage(motif, x + dx, y + dy)
+    }
+  }
+  return out
+}
+
 function idOf(o: object) {
   if (!objectIds.has(o)) objectIds.set(o, nextId++)
   return objectIds.get(o)

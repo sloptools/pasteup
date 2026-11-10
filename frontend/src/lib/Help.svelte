@@ -24,7 +24,7 @@
     [
       'canvas tools',
       [
-        ['V T I', 'move, transform, island'],
+        ['V T W', 'move, transform, island'],
         ['F', 'fit the layer to the island under the cursor'],
         ['M ⇧M', 'select, rect or lasso'],
         ['B E S', 'brush, eraser, clone (⇧ next tip)'],
@@ -33,7 +33,7 @@
         ['L', 'line (⇧ 45° steps)'],
         ['Y', 'text (⏎ ends)'],
         ['X', 'swap colors'],
-        ['⌥ click', 'pick a color'],
+        ['I, ⌥ click', 'pick a color'],
         ['⇧T O', 'tile mode, offset by half'],
       ],
     ],
@@ -44,7 +44,7 @@
         ['1–9 0', 'opacity'],
         ['⇧ click', 'line from the last stroke'],
         ['right button', 'secondary color'],
-        ['⇧I', 'keep to the island'],
+        ['⇧W', 'keep to the island'],
         ['Q', 'paint the layer mask'],
       ],
     ],

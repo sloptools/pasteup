@@ -61,6 +61,21 @@
     line-height: 1.5;
     color: var(--fg);
   }
+  @font-face {
+    font-family: 'Permanent Marker';
+    src: url('/fonts/PermanentMarker.woff2') format('woff2');
+    font-display: block;
+  }
+  article :global(.banner) {
+    display: inline-block;
+    margin: 10px 0 4px;
+    font: 56px/1.2 'Permanent Marker', var(--mono);
+    letter-spacing: 0.05em;
+    background: linear-gradient(100deg, #3a6cf4 0%, #2fb8e6 50%, #3ee8c8 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
   article :global(h1) {
     margin: 18px 0 12px;
     font-size: 15px;

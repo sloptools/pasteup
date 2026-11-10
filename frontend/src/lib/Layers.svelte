@@ -24,7 +24,7 @@
 
   let armed = $state<string | null>(null)
   // Effect settings folded away to keep the list tall.
-  let folded = $state({ grunge: false, blur: false, shadow: false })
+  let folded = $state({ repeat: false, grunge: false, blur: false, shadow: false })
   let menu = $state<{ x: number; y: number; items: Item[] } | null>(null)
 
   // On a row the menu acts on that layer, which becomes active; elsewhere only new layers.
@@ -45,6 +45,7 @@
         { label: 'duplicate', key: '⌘J', action: duplicate },
         { label: 'merge down', key: '⌘E', action: onmerge, disabled: at < 1 },
         ...(l.mask ? [{ label: 'remove mask', action: () => removeMask(l) }] : []),
+        ...(l.repeat ? [{ label: 'remove repeat', action: () => (l.repeat = null) }] : []),
         ...(l.grunge ? [{ label: 'remove grunge', action: () => (l.grunge = null) }] : []),
         ...(l.blur ? [{ label: 'remove blur', action: () => (l.blur = null) }] : []),
         ...(l.outline ? [{ label: 'remove outline', action: () => (l.outline = null) }] : []),
@@ -297,6 +298,25 @@
           <button class="icon small" title="Remove the painted mask" onclick={() => removeMask(active)}><Icon name="trash" /></button>
         </div>
       {/if}
+      {#if active.repeat}
+        {@const r = active.repeat}
+        <div class="props">
+          <button class="kind fold mono" title="Show or hide its settings" onclick={() => (folded.repeat = !folded.repeat)}>
+            <span class="caret" class:open={!folded.repeat}>▸</span>repeat
+          </button>
+          <span class="summary mono">{r.x}, {r.y}</span>
+          <div class="spacer"></div>
+          <button class="icon small" title="Remove the repeat" onclick={() => (active.repeat = null)}><Icon name="trash" /></button>
+        </div>
+        {#if !folded.repeat}
+          <div class="adjust">
+            <Slider bind:value={r.x} label="gap x" min={0} max={64} step={1} title="Texels between the copies, across" />
+            <Slider bind:value={r.y} label="gap y" min={0} max={64} step={1} title="Texels between the copies, down" />
+            <Slider bind:value={r.shiftX} label="shift x" min={0} max={1} step={0.05} scale={100} title="Every other row moves across: 50 for bricks" />
+            <Slider bind:value={r.shiftY} label="shift y" min={0} max={1} step={0.05} scale={100} title="Every other column moves down: 50 for a half-drop wallpaper" />
+          </div>
+        {/if}
+      {/if}
       {#if active.grunge}
         {@const g = active.grunge}
         <div class="props">
@@ -373,9 +393,10 @@
           </div>
         {/if}
       {/if}
-      {#if !active.mask || !active.grunge || (!active.adjust && (!active.blur || !active.outline || !active.shadow))}
+      {#if !active.mask || !active.grunge || (active.canvas && !active.repeat) || (!active.adjust && (!active.blur || !active.outline || !active.shadow))}
         <div class="props adds">
           {#if !active.mask}<button class="text-button" title="A mask to paint where the layer shows (Q)" onclick={toggleMaskMode}>+ mask</button>{/if}
+          {#if active.canvas && !active.repeat}<button class="text-button" title="The piece repeats over the texture" onclick={() => (active.repeat = { x: 0, y: 0, shiftX: 0, shiftY: 0 })}>+ repeat</button>{/if}
           {#if !active.grunge}<button class="text-button" title="A grunge mask: the layer shows only where it does" onclick={() => setGrunge(active, 'clouds')}>+ grunge</button>{/if}
           {#if !active.blur && !active.adjust}<button class="text-button" title="Gaussian blur, before the masks" onclick={() => (active.blur = { x: 2, y: 2, linked: true })}>+ blur</button>{/if}
           {#if !active.outline && !active.adjust}<button class="text-button" title="An outline around what shows" onclick={() => (active.outline = { width: 1, color: '#000000' })}>+ outline</button>{/if}
