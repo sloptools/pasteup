@@ -3,7 +3,7 @@
 | Key | Effect |
 |---|---|
 | M, ⇧M | select tool, next mode (rect, lasso) |
-| drag | select; a click without a drag deselects |
+| drag | select; a click without a drag keeps the selection |
 | ⇧ drag, ⌥ drag | add to, take from the selection |
 | ⌘A, ⌘D, ⌘⇧I | select all, deselect, invert |
 | Esc, ✕ in the options bar | deselect, in every tool |

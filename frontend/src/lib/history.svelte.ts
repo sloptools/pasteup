@@ -78,6 +78,7 @@ export function track() {
 }
 
 // Shows the channel the undone or redone step changed, so the change is seen.
+// The active layer stays while it is still there.
 function restore(s: Snap) {
   const was = last ? channelKeys(last) : {}
   const will = channelKeys(s)
@@ -88,11 +89,12 @@ function restore(s: Snap) {
   const all: Stacks = { ...copyStacks(s.stacks), [s.channel]: { layers: copy(s.layers), active: s.active } }
   const shown = all[changed] ? changed : s.channel
   const { layers, active } = all[shown]!
+  const keep = shown === app.channel && layers.some((l) => l.id === app.active)
   delete all[shown]
   app.stacks = all
   app.channel = shown
   app.layers = layers
-  app.active = active
+  app.active = keep ? app.active : active
   app.size = s.size
 }
 

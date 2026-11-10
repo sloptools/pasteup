@@ -222,14 +222,13 @@
     view.draw()
   })
 
-  // Shift adds to the selection, Alt takes away; a click without a drag deselects.
+  // Shift adds to the selection, Alt takes away; a click without a drag keeps it.
   let combining: Combine = 'replace'
 
   function selectEnd() {
     if (!marquee.dragging) return
     const data = marquee.end(app.size)
     if (data) app.selection = selection(combine(app.selection, data, combining), app.size)
-    else if (combining === 'replace') app.selection = null
     view.draw()
   }
 
