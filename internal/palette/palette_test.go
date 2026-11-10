@@ -36,3 +36,15 @@ func TestParseText(t *testing.T) {
 		t.Fatalf("quake 2 second color %s", Quake2()[1].Hex())
 	}
 }
+
+func TestLospec(t *testing.T) {
+	sizes := map[string]int{"gameboy": 4, "pico-8": 16, "endesga 64": 64}
+	for _, p := range Lospec() {
+		if n, ok := sizes[p.Name]; ok && len(p.Colors) != n {
+			t.Fatalf("%s has %d colors", p.Name, len(p.Colors))
+		}
+	}
+	if len(Lospec()) != 8 {
+		t.Fatalf("%d palettes", len(Lospec()))
+	}
+}

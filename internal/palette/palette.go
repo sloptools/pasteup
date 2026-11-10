@@ -2,7 +2,7 @@ package palette
 
 import (
 	"cmp"
-	_ "embed"
+	"embed"
 	"fmt"
 	"image"
 	_ "image/png"
@@ -213,4 +213,41 @@ var quake2Lmp []byte
 
 func Quake2() []Color {
 	return parseLmp(quake2Lmp)
+}
+
+// Palettes from lospec.com, as .hex files, in the order the app lists them.
+//
+//go:embed lospec/*.hex
+var lospecHex embed.FS
+
+var lospecNames = [][2]string{
+	{"gameboy", "gameboy"},
+	{"rosy 42", "rosy-42"},
+	{"resurrect 64", "resurrect-64"},
+	{"endesga 64", "endesga-64"},
+	{"pico-8", "pico-8"},
+	{"nes", "nes"},
+	{"snes", "snes"},
+	{"lospec500", "lospec500"},
+}
+
+type Named struct {
+	Name   string
+	Colors []Color
+}
+
+func Lospec() []Named {
+	out := make([]Named, 0, len(lospecNames))
+	for _, n := range lospecNames {
+		data, err := lospecHex.ReadFile("lospec/" + n[1] + ".hex")
+		if err != nil {
+			panic(err)
+		}
+		pal, err := ParseText(string(data))
+		if err != nil {
+			panic(err)
+		}
+		out = append(out, Named{n[0], pal})
+	}
+	return out
 }
