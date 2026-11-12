@@ -104,6 +104,10 @@ func saveProject(r SaveRequest) error {
 	if err := tmp.Close(); err != nil {
 		return err
 	}
+	// Windows won't replace a file that is still open.
+	if old != nil {
+		old.Close()
+	}
 	// The new file replaces the old one only once it is whole.
 	return os.Rename(tmp.Name(), r.Path)
 }
@@ -186,7 +190,12 @@ func (a *App) SaveDialog(dir, name string) (string, error) {
 
 // Confirm asks a yes-or-no question; true for yes.
 func (a *App) Confirm(title, message, yes string) bool {
-	answer, err := runtime.MessageDialog(a.ctx, runtime.MessageDialogOptions{
+	return ask(a.ctx, title, message, yes)
+}
+
+// ask shows a question with a yes button; Windows shows Yes and No instead.
+func ask(ctx context.Context, title, message, yes string) bool {
+	answer, err := runtime.MessageDialog(ctx, runtime.MessageDialogOptions{
 		Type:          runtime.QuestionDialog,
 		Title:         title,
 		Message:       message,
@@ -194,7 +203,7 @@ func (a *App) Confirm(title, message, yes string) bool {
 		DefaultButton: "Cancel",
 		CancelButton:  "Cancel",
 	})
-	return err == nil && answer == yes
+	return err == nil && (answer == yes || answer == "Yes")
 }
 
 var dirty struct {
@@ -217,15 +226,7 @@ func (a *App) beforeClose(ctx context.Context) bool {
 	if !on {
 		return false
 	}
-	answer, err := runtime.MessageDialog(ctx, runtime.MessageDialogOptions{
-		Type:          runtime.QuestionDialog,
-		Title:         "Unsaved changes",
-		Message:       "Quit without saving?",
-		Buttons:       []string{"Quit", "Cancel"},
-		DefaultButton: "Cancel",
-		CancelButton:  "Cancel",
-	})
-	if err != nil || answer != "Quit" {
+	if !ask(ctx, "Unsaved changes", "Quit without saving?", "Quit") {
 		return true
 	}
 	// Quitting without saving drops the changes on purpose, so nothing to recover.
